@@ -6,7 +6,7 @@
 
     /* AREA  v7CacheOpp,CODE,READONLY */
 
-#include <include/architecture/armv7/cache.h>
+#include <architecture/armv7/cache.h>
 // ------------------------------------------------------------
 // Cache Maintenance
 // ------------------------------------------------------------
@@ -43,7 +43,7 @@
     //
 
     __asm("MRC     p15, 1, r0, c0, c0, 1");     // Read CLIDR
-    __asm("ANDS    r3, r0, #&7000000");
+    __asm("ANDS    r3, r0, #0x7000000");
     __asm("MOV     r3, r3, LSR #23");           // Cache level value (naturally aligned)
     __asm("BEQ     clean_dcache_finished");
     __asm("MOV     r10, #0");
@@ -57,7 +57,7 @@
     __asm("MCR     p15, 2, r10, c0, c0, 0");    // write the Cache Size selection register
     __asm("ISB");                               // ISB to sync the change to the CacheSizeID reg
     __asm("MRC     p15, 1, r1, c0, c0, 0");     // reads current Cache Size ID register
-    __asm("AND     r2, r1, #&7");               // extract the line length field
+    __asm("AND     r2, r1, #0x7");               // extract the line length field
     __asm("ADD     r2, r2, #4");                // add 4 for the line length offset (log2 16 bytes)
     __asm("LDR     r4, =0x3FF");
     __asm("ANDS    r4, r4, r1, LSR #3");        // R4 is the max number on the way size (right aligned)
@@ -98,7 +98,7 @@
     //
 
     __asm("MRC     p15, 1, r0, c0, c0, 1");     // Read CLIDR
-    __asm("ANDS    r3, r0, #&7000000");
+    __asm("ANDS    r3, r0, #0x7000000");
     __asm("MOV     r3, r3, LSR #23");           // Cache level value (naturally aligned)
     __asm("BEQ     clean_invalidate_dcache_finished");
     __asm("MOV     r10, #0");
@@ -112,7 +112,7 @@
     __asm("MCR     p15, 2, r10, c0, c0, 0");    // write the Cache Size selection register
     __asm("ISB");                               // ISB to sync the change to the CacheSizeID reg
     __asm("MRC     p15, 1, r1, c0, c0, 0");     // reads current Cache Size ID register
-    __asm("AND     r2, r1, #&7");               // extract the line length field
+    __asm("AND     r2, r1, #0x7");               // extract the line length field
     __asm("ADD     r2, r2, #4");                // add 4 for the line length offset (log2 16 bytes)
     __asm("LDR     r4, =0x3FF");
     __asm("ANDS    r4, r4, r1, LSR #3");        // R4 is the max number on the way size (right aligned)
@@ -157,7 +157,7 @@
     __asm("MCR     p15, 0, r0, c7, c5, 0");     // ICIALLU - Invalidate entire I Cache, and flushes branch target cache
 
     __asm("MRC     p15, 1, r0, c0, c0, 1");     // Read CLIDR
-    __asm("ANDS    r3, r0, #&7000000");
+    __asm("ANDS    r3, r0, #0x7000000");
     __asm("MOV     r3, r3, LSR #23");           // Cache level value (naturally aligned)
     __asm("BEQ     invalidate_caches_finished");
     __asm("MOV     r10, #0");
@@ -171,7 +171,7 @@
     __asm("MCR     p15, 2, r10, c0, c0, 0");    // write the Cache Size selection register
     __asm("ISB");                               // ISB to sync the change to the CacheSizeID reg
     __asm("MRC     p15, 1, r1, c0, c0, 0");     // reads current Cache Size ID register
-    __asm("AND     r2, r1, #&7");               // extract the line length field
+    __asm("AND     r2, r1, #0x7");               // extract the line length field
     __asm("ADD     r2, r2, #4");                // add 4 for the line length offset (log2 16 bytes)
     __asm("LDR     r4, =0x3FF");
     __asm("ANDS    r4, r4, r1, LSR #3");        // R4 is the max number on the way size (right aligned)
@@ -211,7 +211,7 @@
     __asm("MCR     p15, 0, r0, c7, c1, 0");     // ICIALLUIS - Invalidate entire I Cache inner shareable
 
     __asm("MRC     p15, 1, r0, c0, c0, 1");     // Read CLIDR
-    __asm("ANDS    r3, r0, #&7000000");
+    __asm("ANDS    r3, r0, #0x7000000");
     __asm("MOV     r3, r3, LSR #23");           // Cache level value (naturally aligned)
     __asm("BEQ     invalidate_caches_is_finished");
     __asm("MOV     r10, #0");
@@ -225,7 +225,7 @@
     __asm("MCR     p15, 2, r10, c0, c0, 0");    // write the Cache Size selection register
     __asm("ISB");                               // ISB to sync the change to the CacheSizeID reg
     __asm("MRC     p15, 1, r1, c0, c0, 0");     // reads current Cache Size ID register
-    __asm("AND     r2, r1, #&7");               // extract the line length field
+    __asm("AND     r2, r1, #0x7");               // extract the line length field
     __asm("ADD     r2, r2, #4");                // add 4 for the line length offset (log2 16 bytes)
     __asm("LDR     r4, =0x3FF");
     __asm("ANDS    r4, r4, r1, LSR #3");        // R4 is the max number on the way size (right aligned)

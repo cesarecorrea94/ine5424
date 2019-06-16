@@ -9,7 +9,8 @@
 #define __armv7_cache_h
 
 // #include "kernel.h"
-#include <stdint.h>
+#include <architecture/cpu.h>
+typedef EPOS::S::CPU::Reg32 uint32_t;
 
 //
 // Note:
