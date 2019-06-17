@@ -1,4 +1,4 @@
-// EPOS Realview_PBX (ARM Cortex-A9) MCU Metainfo and Configuration
+// EPOS Realview PBX (ARM Cortex-A9) MCU Metainfo and Configuration
 
 #ifndef __machine_traits_h
 #define __machine_traits_h
@@ -30,18 +30,18 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int BOOT_STACK    = 0x07EFFFFC; // PAGE_TABLES - sizeof(int)
 
     // Logical Memory Map
-    static const unsigned int BOOT          = 0x00000000;
+    static const unsigned int BOOT          = NOT_USED;
     static const unsigned int SETUP         = NOT_USED;
     static const unsigned int INIT          = NOT_USED;
 
     static const unsigned int APP_LOW       = MEM_BASE;
-    static const unsigned int APP_CODE      = 0x00010000; // VECTOR_TABLE;
+    static const unsigned int APP_CODE      = VECTOR_TABLE;
     static const unsigned int APP_DATA      = VECTOR_TABLE;
     static const unsigned int APP_HIGH      = MEM_TOP;
 
-    static const unsigned int PHY_MEM       = MEM_BASE;
-    static const unsigned int IO_BASE       = 0x10000000;
-    static const unsigned int IO_TOP        = 0xBFFFFFFF;
+    static const unsigned int PHY_MEM       = NOT_USED;
+    static const unsigned int IO_BASE       = NOT_USED;
+    static const unsigned int IO_TOP        = NOT_USED;
 
     static const unsigned int SYS           = NOT_USED;
     static const unsigned int SYS_CODE      = NOT_USED; // Library mode only => APP + SYS
@@ -79,6 +79,18 @@ template<> struct Traits<UART>: public Traits<Machine_Common>
     static const unsigned int DEF_DATA_BITS = 8;
     static const unsigned int DEF_PARITY = 0; // none
     static const unsigned int DEF_STOP_BITS = 1;
+};
+
+template<> struct Traits<USB>: public Traits<Machine_Common>
+{
+    static const bool enabled = false;
+    static const unsigned int UNITS = 0;
+    static const bool blocking = true;
+};
+
+template<> struct Traits<Scratchpad>: public Traits<Machine_Common>
+{
+    static const bool enabled = false;
 };
 
 __END_SYS
