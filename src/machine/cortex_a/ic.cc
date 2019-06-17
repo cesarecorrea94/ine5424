@@ -55,6 +55,32 @@ void IC::entry()
         "ldmfd sp!, {r0-r3, r12, lr, pc}^           \n" : : "i"(dispatch));
 }
 
+void IC::dispatch(unsigned int _id)
+{
+    Interrupt_Id id = int_id();
+
+    if((id != INT_TIMER) || Traits<IC>::hysterically_debugged)
+        db<IC>(TRC) << "IC::dispatch(i=" << id << ")" << endl;
+
+    assert(id < INTS);
+    if(_eoi_vector[id])
+        _eoi_vector[id](id);
+
+    CPU::int_enable();
+
+    _int_vector[id](id);
+}
+
+void IC::eoi(unsigned int id)
+{
+    if((id != INT_TIMER) || Traits<IC>::hysterically_debugged)
+        db<IC>(TRC) << "IC::eoi(i=" << id << ")" << endl;
+
+    assert(id < INTS);
+    if(_eoi_vector[id])
+        _eoi_vector[id](id);
+}
+
 void IC::int_not(const Interrupt_Id & i)
 {
     db<IC>(WRN) << "IC::int_not(i=" << i << ")" << endl;
