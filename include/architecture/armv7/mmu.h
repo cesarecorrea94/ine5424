@@ -12,7 +12,7 @@
 
 __BEGIN_SYS
 
-class MMU: public MMU_Common<0, 0, 0>
+class MMU: public MMU_Common<10, 10, 12>
 {
     friend class CPU;
 
@@ -23,7 +23,7 @@ private:
 
 public:
     // Page Flags
-    typedef MMU_Common<0, 0, 0>::Flags ARMv7_Flags;
+    typedef MMU_Common<10, 10, 12>::Flags ARMv7_Flags;
 
     // Page_Table
     class Page_Table {};
