@@ -7,6 +7,7 @@
 
 #ifndef __cortex_a_global_timer_h
 #define __cortex_a_global_timer_h
+extern "C" {
 
 // Typical set of calls to enable Timer:
 // init_global_timer( AUTO_INCREMENT>, INCREMENT_VALUE );
@@ -35,6 +36,7 @@ void read_global_timer(unsigned int* top, unsigned int* bottom);
 // Clears the global timer interrupt
 void clear_global_timer_irq(void);
 
+}
 #endif
 
 // ------------------------------------------------------------
