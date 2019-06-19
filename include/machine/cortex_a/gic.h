@@ -7,6 +7,7 @@
 
 #ifndef __cortex_a_gic_h
 #define __cortex_a_gic_h
+extern "C" {
 
 // ------------------------------------------------------------
 // GIC
@@ -73,6 +74,7 @@ void init_GIC(void);
 // Send a software generate interrupt
 void send_sgi(unsigned int ID, unsigned int core_list, unsigned int filter_list);
 
+}
 #endif
 
 // ------------------------------------------------------------

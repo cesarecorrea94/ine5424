@@ -7,6 +7,7 @@
 
 #ifndef __cortex_a_scu_h
 #define __cortex_a_scu_h
+extern "C" {
 
 // ------------------------------------------------------------
 // SCU
@@ -60,6 +61,7 @@ void disable_maintenance_broadcast(void);
 // for the specified core.
 void secure_SCU_invalidate(unsigned int cpu, unsigned int ways);
 
+}
 #endif
 
 // ------------------------------------------------------------

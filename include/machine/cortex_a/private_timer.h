@@ -7,6 +7,7 @@
 
 #ifndef __cortex_a_private_timer_h
 #define __cortex_a_private_timer_h
+extern "C" {
 
 // Typical set of calls to enable Timer:
 // init_private_timer(0xXXXX, 0)   <-- Counter down value of 0xXXXX, with auto-reload
@@ -29,6 +30,7 @@ unsigned int get_private_timer_count(void);
 // Clears the private timer interrupt
 void clear_private_timer_irq(void);
 
+}
 #endif
 
 // ------------------------------------------------------------
