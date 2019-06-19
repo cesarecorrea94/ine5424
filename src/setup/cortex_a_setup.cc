@@ -1,6 +1,8 @@
 // EPOS Cortex-A SETUP
 
 #include <system/config.h>
+#include <machine/cortex_a/scu.h>
+#include <machine/cortex_a/gic.h>
 
 extern "C" { void _vector_table() __attribute__ ((used, naked, section(".init"))); }
 
@@ -24,6 +26,15 @@ void _vector_table()
         b   _fiq                                                             \t\n\
         ");
     __asm("_reset:");
+
+    // Set a temporary Stack Pointer for INIT
+    // Mains stack will be allocated by Thread::init()
+    // "\n     ldr     r0, =__boot_stack__"
+    // "\n     mov     sp, r0"
+    __asm("bl      get_cpu_id");
+    __asm("mul     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::STACK_SIZE));
+    __asm("ldr     sp, =__boot_stack__");
+    __asm("sub     sp, r0");
 
     ASM(
     // 1.MMU, L1$ disable
@@ -193,5 +204,101 @@ void _vector_table()
                                         // o que há em R1, habilitando a MMU
     "\n");
 
-    __asm("b _mcu_start");
+    //
+    // SMP initialization 
+    // -------------------
+    __asm("MRC     p15, 0, r0, c0, c0, 5");     // Read CPU ID register
+    __asm("ANDS    r0, r0, #0x03");             // Mask off, leaving the CPU ID field
+    __asm("BLEQ    primary_cpu_init");
+    __asm("BLNE    secondary_cpus_init");
+
+    // ------------------------------------------------------------
+    // Initialization for PRIMARY CPU
+    // ------------------------------------------------------------
+    __asm("primary_cpu_init:");
+    //
+    // Enable the SCU
+    // ---------------
+    __asm("BL      enable_scu");
+    
+    //
+    // Join SMP
+    // ---------
+    __asm("MOV     r0, #0x0");                  // Move CPU ID into r0
+    __asm("MOV     r1, #0xF");                  // Move 0xF (represents all four ways) into r1
+    __asm("BL      secure_SCU_invalidate");
+    __asm("BL      join_smp");
+    __asm("BL      enable_maintenance_broadcast");
+    
+    ASM(
+    // Clear the BSS
+    "\n     eor     r0, r0"
+    "\n     ldr     r1, =__bss_start__"
+    "\n     ldr     r2, =__bss_end__"
+    "\n .L1:"
+    "\n     str     r0, [r1]"
+    "\n     add     r1, #4"
+    "\n     cmp     r1, r2"
+    "\n     blt     .L1"
+    "\n");
+
+    //
+    // GIC Init
+    // ---------
+    __asm("BL      enable_GIC");
+    __asm("BL      enable_gic_processor_interface");
+
+    //
+    // Branch to C lib code
+    // ----------------------
+    // __asm("B       __main");
+    __asm("b _start");
+
+    // ------------------------------------------------------------
+    // Initialization for SECONDARY CPUs
+    // ------------------------------------------------------------
+    __asm("secondary_cpus_init:");
+    //
+    // GIC Init
+    // ---------
+    __asm("BL      enable_gic_processor_interface");
+
+    __asm("MOV     r0, #0x1F");                 // Priority
+    __asm("BL      set_priority_mask");
+
+    __asm("MOV     r0, #0x0");                  // ID
+    __asm("BL      enable_irq_id");
+
+    __asm("MOV     r0, #0x0");                  // ID
+    __asm("MOV     r1, #0x0");                  // Priority
+    __asm("BL      set_irq_priority");
+
+    //
+    // Join SMP
+    // ---------
+    __asm("MRC     p15, 0, r0, c0, c0, 5");     // Read CPU ID register
+    __asm("ANDS    r0, r0, #0x03");             // Mask off, leaving the CPU ID field
+    __asm("MOV     r1, #0xF");                  // Move 0xF (represents all four ways) into r1
+    __asm("BL      secure_SCU_invalidate");
+    
+    __asm("BL      join_smp");
+    __asm("BL      enable_maintenance_broadcast");
+
+    // //
+    // // Holding Pen
+    // // ------------
+    // __asm("MOV     r2, #0x00");                 // Clear r2
+    // __asm("CPSIE   i");                         // Enable interrupts
+
+    // __asm("holding_pen:");
+    // __asm("CMP     r2, #0x0");                  // r2 will be set to 0x1 by IRQ handler on receiving SGI
+    // __asm("WFIEQ");
+    // __asm("BEQ     holding_pen");
+    // __asm("CPSID   i");                         // IRQs not used in reset of example, so mask out interrupts
+
+    //
+    // Branch to C lib code
+    // ----------------------
+    // __asm("B       __main");
+    __asm("b _start");
 }

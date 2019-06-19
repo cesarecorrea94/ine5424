@@ -128,10 +128,10 @@ public:
     }
 
     static void init() {
-        enable_GIC();
-        enable_gic_processor_interface();
-        enable();
-        set_priority_mask(0xFF);
+        // enable_GIC();
+        // enable_gic_processor_interface();
+        // enable();
+        // set_priority_mask(0xFF);
         // __asm("MRS    r0, CPSR");
         // __asm("BIC    r0, r0, #0x80"); // Clears the CPSR I bit
         // __asm("MSR    CPSR_c, r0");

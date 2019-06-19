@@ -49,7 +49,7 @@ template<> struct Traits<Build>: public Traits<void>
     static const unsigned int ARCHITECTURE = ARMv7;
     static const unsigned int MACHINE = Cortex_A;
     static const unsigned int MODEL = Realview_PBX;
-    static const unsigned int CPUS = 1;
+    static const unsigned int CPUS = 2;
     static const unsigned int NODES = 1; // (> 1 => NETWORKING)
     static const unsigned int EXPECTED_SIMULATION_TIME = 60; // s (0 => not simulated)
 };
@@ -61,7 +61,7 @@ template<> struct Traits<Debug>: public Traits<void>
     static const bool error   = true;
     static const bool warning = true;
     static const bool info    = false;
-    static const bool trace   = false;
+    static const bool trace   = true;
 };
 
 template<> struct Traits<Lists>: public Traits<void>
