@@ -202,6 +202,8 @@ void _vector_table()
                                         // ligar a MMU
     "\n     MCR p15, 0, r1, c1, c0, 0"  // Escreve-se no reg 1 do coprocessor 15
                                         // o que há em R1, habilitando a MMU
+    "\n     ISB"
+    "\n     DSB"
     "\n");
 
     //

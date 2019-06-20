@@ -1,7 +1,8 @@
 // EPOS Application Scaffold and Application Component Implementation
 
 #include <system.h>
-
+#include <machine/cortex_a/machine.h>
+#include <architecture/armv7/cache.h>
 __BEGIN_SYS
 
 // Application class attributes
@@ -20,5 +21,8 @@ OStream cerr;
 __END_API
 
 extern "C" {
-    void __pre_main() {}
+    void __pre_main() {
+        enable_caches();
+        EPOS::S::Machine::smp_barrier();
+    }
 }
