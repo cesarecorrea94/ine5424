@@ -1,19 +1,15 @@
 // EPOS Cortex-A SETUP
 
 #include <system/config.h>
+#include <machine/cortex_a/scu.h>
+#include <machine/cortex_a/gic.h>
 
 extern "C" { void _vector_table() __attribute__ ((used, naked, section(".init"))); }
-
-// char ttb_address[16*1024] __attribute__((aligned (16*1024)));
-// unsigned ttb_address = EPOS::S::Traits<EPOS::S::Machine>::VECTOR_TABLE;
-// void mmu_config();
-// void cache_config();
 
 // Interrupt Vector Table
 void _vector_table()
 {
     ASM("\t\n\
-    _vector_table:                                                           \t\n\
         b   _reset                                                           \t\n\
         b   _undefined_instruction                                           \t\n\
         b   _software_interrupt                                              \t\n\
@@ -25,173 +21,280 @@ void _vector_table()
         ");
     __asm("_reset:");
 
-    ASM(
-    // 1.MMU, L1$ disable
-    //-----------------------------------------------
-    "\n     MRC p15, 0, r1, c1, c0, 0"  // Read System Control Register (SCTLR)
-    "\n     BIC r1, r1, #1"             // mmu off
-    "\n     BIC r1, r1, #(1 << 12)"     // i-cache off
-    "\n     BIC r1, r1, #(1 << 2)"      // d-cache & L2-$ off
-    "\n     MCR p15, 0, r1, c1, c0, 0"  // Write System Control Register (SCTLR)
-    //-----------------------------------------------
-    // 2. invalidate: L1$, TLB, branch predictor
-    //-----------------------------------------------
-    "\n     MOV r0, #0"
-    "\n     MCR p15, 0, r0, c7, c5, 0"  // Invalidate Instruction Cache
-    "\n     MCR p15, 0, r0, c7, c5, 6"  // Invalidate branch prediction array
-    "\n     MCR p15, 0, r0, c8, c7, 0"  // Invalidate entire Unified Main TLB
-    "\n     ISB"                        // instr sync barrier
-    //-----------------------------------------------
-    // 2.a. Enable I cache + branch prediction
-    //-----------------------------------------------
-    "\n     MRC p15, 0, r0, c1, c0, 0"  // System control register
-    "\n     ORR r0, r0, #1 << 12"       // Instruction cache enable
-    "\n     ORR r0, r0, #1 << 11"       // Program flow prediction
-    "\n     MCR p15, 0, r0, c1, c0, 0"  // System control register
-    //-----------------------------------------------
+    // Set a temporary Stack Pointer for INIT
+    // Mains stack will be allocated by Thread::init()
+    // "\n     ldr     r0, =__boot_stack__"
+    // "\n     mov     sp, r0"
+    __asm("bl      get_cpu_id");
+    __asm("mul     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::STACK_SIZE));
+    __asm("ldr     sp, =__boot_stack__");
+    __asm("sub     sp, r0");
 
-    "\n     MRC p15, 1, R0, c0, c0, 1"  // Read CLIDR into R0
-    "\n     ANDS R3, R0, #0x07000000"
-    "\n     MOV R3, R3, LSR #23"        // Cache level value (naturally aligned)
-    "\n     BEQ Finished"
-    "\n     MOV R10, #0"
-    "\n Loop1:"
-    "\n     ADD R2, R10, R10, LSR #1"   // Work out 3 x cachelevel
-    "\n     MOV R1, R0, LSR R2"         // bottom 3 bits are the Cache type for this level
-    "\n     AND R1, R1, #7"             // get those 3 bits alone
-    "\n     CMP R1, #2"
-    "\n     BLT Skip"                   // no cache or only instruction cache at this
-    "\n     MCR p15, 2, R10, c0, c0, 0" // write CSSELR from R10
-    "\n     ISB"                        // ISB to sync the change to the CCSIDR
-    "\n     MRC p15, 1, R1, c0, c0, 0"  // read current CCSIDR to R1
-    "\n     AND R2, R1, #7"             // extract the line length field
-    "\n     ADD R2, R2, #4"             // add 4 for the line length offset (log2 16 bytes)
-    "\n     LDR R4, =0x3FF"
-    "\n     ANDS R4, R4, R1, LSR #3"    // R4 is the max number on the way size (right aligned)
-    "\n     CLZ R5, R4"                 // R5 is the bit position of the way size increment
-    "\n     MOV R9, R4"                 // R9 working copy of the max way size (right aligned)
-    "\n Loop2:"
-    "\n     LDR R7, =0x00007FFF"
-    "\n     ANDS R7, R7, R1, LSR #13"   // R7 is the max number of the index size (right aligned)
-    "\n Loop3:"
-    "\n     ORR R11, R10, R9, LSL R5"   // factor in the way number and cache number into R11
-    "\n     ORR R11, R11, R7, LSL R2"   // factor in the index number
-    "\n     MCR p15, 0, R11, c7, c10, 2"// DCCSW, clean by set/way
-    "\n     SUBS R7, R7, #1"            // decrement the index
-    "\n     BGE Loop3"
-    "\n     SUBS R9, R9, #1"            // decrement the way number
-    "\n     BGE Loop2"
+    __asm("bl      get_cpu_id");
+    __asm("cmp     r0, #0");            // Verifica se CPU0
+    __asm("blne    read_irq_ack");      // Pega SGI ID (=0), se CPU != 0
+    __asm("blne    write_end_of_irq");  // EOI (ID=0), se CPU != 0
 
-    "\n Skip:"
-    "\n     ADD R10, R10, #2"           // increment the cache number
-    "\n     CMP R3, R10"
-    "\n     BGT Loop1"
-    "\n     DSB"
-    "\n Finished:"
-    "\n     ADD R4, #0"
-    "\n     ADD R4, R4, #10"
-    "\n");
+    //
+    // MMU Init
+    // ---------
 
-    ASM(
-    // Disable MMU
-    "\n     MRC p15, 0, r1, c1, c0, 0"  // Atribui-se ao R1 o valor do registrador 1 do
-                                        // coprocessor 15
-    "\n     BIC r1, r1, #0x1"           // Atribui-se ao bit 0 em R1 o valor 0, para
-                                        // desligar a MMU
-    "\n     MCR p15, 0, r1, c1, c0, 0"  // Escreve-se no reg 1 do coprocessor 15
-                                        // o que ha em R1, desabilitando a MMU
+    //
+    // Invalidate caches
+    // ------------------
+    __asm("BL      invalidate_caches");
 
-    // Disable L1 Caches
-    "\n     MRC p15, 0, r1, c1, c0, 0"  // Read Control Register configuration data
-    "\n     BIC r1, r1, #(0x1 << 12)"   // Disable I Cache
-    "\n     BIC r1, r1, #(0x1 << 2)"    // Disable D Cache
-    "\n     MCR p15, 0, r1, c1, c0, 0"  // Write Control Register configuration data
+    //
+    // Clear Branch Prediction Array
+    // ------------------------------
+    __asm("MOV     r0, #0x0");
+    __asm("MCR     p15, 0, r0, c7, c5, 6");     // BPIALL - Invalidate entire branch predictor array
 
-    // Invalidate L1 Caches
-    // Invalidate Instruction cache
-    "\n     MOV r1, #0"
-    "\n     MCR p15, 0, r1, c7, c5, 0"
+    //
+    // Invalidate TLBs
+    //------------------
+    __asm("MOV     r0, #0x0");
+    __asm("MCR     p15, 0, r0, c8, c7, 0");     // TLBIALL - Invalidate entire Unifed TLB
 
-    // Invalidate Data cache
-    // to make the code general purpose, we calculate the
-    // cache size first and loop through each set + way
-    "\n     MRC p15, 1, r0, c0, c0, 0"  // Read Cache Size ID
-    "\n     LDR r3, =#0x1ff"
-    "\n     AND r0, r3, r0, LSR #13"    // r0 = no. of sets - 1
-    "\n     MOV r1, #0"                 // r1 = way counter way_loop
-    "\n way_loop:"
-    "\n     MOV r3, #0"                 // r3 = set counter set_loop
-    "\n set_loop:"
-    "\n     MOV r2, r1, LSL #30"
-    "\n     ORR r2, r3, LSL #5"         // r2 = set/way cache operation format
-    "\n     MCR p15, 0, r2, c7, c6, 2"  // Invalidate line described by r2
-    "\n     ADD r3, r3, #1"             // Increment set counter
-    "\n     CMP r0, r3"                 // Last set reached yet?
-    "\n     BGT set_loop"               // if not, iterate set_loop
-    "\n     ADD r1, r1, #1"             // else, next
-    "\n     CMP r1, #4"                 // Last way reached yet?
-    "\n     BNE way_loop"               // if not, iterate way_loop
+    //
+    // Set up Domain Access Control Reg
+    // ----------------------------------
+    // b00 - No Access (abort)
+    // b01 - Client (respect table entry)
+    // b10 - RESERVED
+    // b11 - Manager (ignore access permissions)
+    // Setting D0 to client, all others to No Access
+    __asm("MOV     r0, #0x01");
+    __asm("MCR     p15, 0, r0, c3, c0, 0");
 
-    // Invalidate TLB
-    "\n     MCR p15, 0, r1, c8, c7, 0"
 
-    /* Branch Prediction Enable */  // Não tem no seminário
+    // Page tables
+    // -------------------------
+    // Each CPU will have its own L1 page table.  The
+    // code reads the base address from the scatter file
+    // the uses the CPUID to calculate an offset for each
+    // CPU.
+    //
+    // The page tables are generated at boot time.  First
+    // the table is zeroed.  Then the individual valid 
+    // entries are written in
+    //
 
-    /* Enable D-side Prefetch */    // Não tem no seminário
+    // Calculate offset for this CPU
+    // __asm("LDR     r0, =||Image$$PAGETABLES$$ZI$$Base||");
+    __asm("LDR     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::STACK_SIZE));
+    __asm("MRC     p15, 0, r1, c0, c0, 5");     // Read Multiprocessor Affinity Register
+    __asm("ANDS    r1, r1, #0x03");             // Mask off, leaving the CPU ID field
+    __asm("MOV     r1, r1, LSL #14");           // Convert core ID into a 16K offset (this is the size of the table)
+    __asm("ADD     r0, r1, r0");                // Add offset to current table location to get dst
 
-    // Aqui é criada uma L1 translation table na RAM que divide
-    // todo o espaço de endereçamento de 4GB em seções de 1 MB,
-    // todas com Full Access e Strongly Ordered
-    "\n     LDR r0, =0xDE2"             // Atribui-se ao R0 parte do descriptor
-//  "\n     LDR r1, =ttb_address"
-    "\n     LDR r1, =0xFA0000"          // Atribui-se ao R1 endereço base
-                                        // da L1 tranlastion table
-    "\n     LDR r3, = 4095"             // R3 se torna o contador para o loop
+    // Fill table with zeros
+    __asm("MOV     r2, #1024");                 // Set r3 to loop count (4 entries per iteration, 1024 iterations)
+    __asm("MOV     r1, r0");                    // Make a copy of the base dst
+    __asm("MOV     r3, #0");
+    __asm("MOV     r4, #0");
+    __asm("MOV     r5, #0");
+    __asm("MOV     r6, #0");
+    __asm("ttb_zero_loop:");
+    __asm("STMIA   r1!, {r3-r6}");              // Store out four entries
+    __asm("SUBS    r2, r2, #1");                // Decrement counter
+    __asm("BNE     ttb_zero_loop");
 
-    "\n write_pte:"                     // Label do loop para escrita das
-                                        // page table entry (PTE) da translation table
-    "\n     ORR r2, r0, r3, LSL #20"    // Atribui-se ao R2 OR entre o endereço
-                                        // e os bits padrão da PTE
-    "\n     STR r2, [r1, r3, LSL #2]"   // Escreve-se a PTE na translation table
-                                        // (endereço de escrita é o ttb_address somado
-                                        // com contador e multiplicado por 4)
-    "\n     SUB r3, r3, #1"             // Decrementa-se contador do loop
-    "\n     CMP r3, #-1"                // Faz-se a comparação para verificar
-                                        // se loop acabou
-    "\n     BNE write_pte"              // Caso o loop não tenha acabado,
-                                        // escreve mais uma pte
+    //
+    // STANDARD ENTRIES
+    //
 
-    // Faz-se a primeira entrada da translation table
-    // cacheable, normal, write-back, write allocate
-    "\n     BIC r0, r0, #0xC"           // Limpa-se CB bits
-    "\n     ORR r0, r0, #0X4"           // Write-back, write allocate
-    "\n     BIC r0, r0, #0x7000"        // Limpa-se TEX bits
-    "\n     ORR r0, r0, #0x5000"        // Faz-se TEX write-back e write allocate
-    "\n     ORR r0, r0, #0x10000"       // Torna compartilhável
-    "\n     STR r0, [r1]"               // Escreve-se na primeira entrada
+    // Entry for VA 0x0
+    // This region must be coherent
+    __asm("LDR     r1, =PABASE_VA0");           // Physical address
+    __asm("LDR     r2, =TTB_COHERENT");         // Descriptor template
+    __asm("ORR     r1, r1, r2");                // Combine address and template
+    __asm("STR     r1, [r0]");
 
-    // Inicializa a MMU
-    "\n     MOV r1,#0x0"
-    "\n     MCR p15, 0, r1, c2, c0, 2"  // Escrita do Translation Table Base Control Register
-//  "\n     LDR r1, =ttb_address"
-    "\n     LDR r1, =0xFA0000"          // Atribui-se ao R1 endereço base
-                                        // da L1 tranlastion table
-    "\n     MCR p15, 0, r1, c2, c0, 0"  // Escreve-se no reg 1 do coprocessor 15 o que ha
-                                        // em r1 (endereco base da tranlastion table)
-                                    
-    // In this simple example, we don't use TRE or Normal Memory Remap Register.
-    // Set all Domains to Client
-    "\n     LDR r1, =0x55555555"
-    "\n     MCR p15, 0, r1, c3, c0, 0"  // Write Domain Access Control Register
+    // Entry for VA 0x0010,0000
+    // Each CPU stores private data in this address range
+    // Using the MMU to map to different PA on each CPU.
+    // 
+    // CPU 0 - PA Base
+    // CPI 1 - PA Base + 1MB
+    // CPU 2 - PA Base + 2MB
+    // CPU 3 - PA Base + 3MB
+
+    __asm("MRC     p15, 0, r1, c0, c0, 5");     // Re-read Multiprocessor Affinity Register
+    __asm("AND     r1, r1, #0x03");             // Mask off, leaving the CPU ID field
+    __asm("MOV     r1, r1, LSL #20");           // Convert core ID into a MB offset
     
+    __asm("LDR     r3, =PABASE_VA1");           // Base PA
+    __asm("ADD     r1, r1, r3");                // Add CPU offset to PA
+    __asm("LDR     r2, =TTB_NONCOHERENT");      // Descriptor template
+    __asm("ORR     r1, r1, r2");                // Combine address and template
+    __asm("STR     r1, [r0, #4]");
+
+    // Entry for private address space
+    // Needs to be marked as Device memory
+    __asm("MRC     p15, 4, r1, c15, c0, 0");    // Get base address of private address space
+    __asm("LSR     r1, r1, #20");               // Clear bottom 20 bits, to find which 1MB block its in
+    __asm("LSL     r2, r1, #2");                // Make a copy, and multiply by four.  This gives offset into the page tables
+    __asm("LSL     r1, r1, #20");               // Put back in address format
+
+    __asm("LDR     r3, =TTB_DEVICE");           // Descriptor template
+    __asm("ORR     r1, r1, r3");                // Combine address and template
+    __asm("STR     r1, [r0, r2]");
+    
+    //
+    // OPTIONAL ENTRIES
+    // You will need additional translations if:
+    // - No RAM at zero, so cannot use flat mapping
+    // - You wish to retarget
+    //
+
+    // If not flat mapping, you need a page table entry covering
+    // the physical address of the boot code.
+    //LDR     r1, =PABASE_VA0           // Physical address
+    //LSR     r2, r1, #18               // Make a copy of PA, and convert in table offset
+    //LDR     r3, =TTB_COHERENT         // Descriptor template
+    //ORR     r1, r1, r3                // Combine address and template
+    //STR     r1, [r0, r2]
+
+    // If you wish to output to stdio to a UART you will need
+    // an additional entry
+    //LDR     r1, =PABASE_UART          // Physical address of UART
+    //LSR     r1, r1, #20               // Mask off bottom 20 bits to find which 1MB it is within
+    //LSL     r2, r1, #2                // Make a copy and multiply by 4 to get table offset
+    //LSL     r1, r1, #20               // Put back into address format
+    //LDR     r3, =TTB_DEVICE           // Descriptor template
+    //ORR     r1, r1, r3                // Combine address and template
+    //STR     r1, [r0, r2]
+
+    //
+    // Barrier
+    // --------
+    __asm("DSB");
+
+    //
+    // Set location of level 1 page table
+    //------------------------------------
+    // 31:14 - Base addr 0x8400,0000
+    // 13:5  - 0x0
+    // 4:3   - RGN 0x0 (Outer Noncachable)
+    // 2     - P   0x0
+    // 1     - S   0x0 (Non-shared)
+    // 0     - C   0x0 (Inner Noncachable)
+    __asm("MCR     p15, 0, r0, c2, c0 ,0");
+
+
     // Enable MMU
-    "\n     MRC p15, 0, r1, c1, c0, 0"  // Atribui-se ao R1 o valor do registrador 1 do
-                                        // coprocessor 15
-    "\n     ORR r1, r1, #0x1"           // Atribui-se ao bit 0 em R1 o valor 1, para
-                                        // ligar a MMU
-    "\n     MCR p15, 0, r1, c1, c0, 0"  // Escreve-se no reg 1 do coprocessor 15
-                                        // o que há em R1, habilitando a MMU
+    //-------------
+    // 0     - M, set to enable MMU
+    // Leaving the caches disabled until after scatter loading.
+    __asm("MRC     p15, 0, r0, c1, c0, 0");     // Read current control reg
+    __asm("ORR     r0, r0, #0x01");             // Set M bit
+    __asm("MCR     p15, 0, r0, c1, c0, 0");     // Write reg back
+
+    //
+    // MMU now enable - Virtual address system now active
+    //
+
+    //
+    // Branch Prediction Init
+    // -----------------------
+    __asm("BL      enable_branch_prediction");
+
+    //
+    // SMP initialization 
+    // -------------------
+    __asm("MRC     p15, 0, r0, c0, c0, 5");     // Read CPU ID register
+    __asm("ANDS    r0, r0, #0x03");             // Mask off, leaving the CPU ID field
+    __asm("BLEQ    primary_cpu_init");
+    __asm("BLNE    secondary_cpus_init");
+
+    // ------------------------------------------------------------
+    // Initialization for PRIMARY CPU
+    // ------------------------------------------------------------
+    __asm("primary_cpu_init:");
+    //
+    // Enable the SCU
+    // ---------------
+    __asm("BL      enable_scu");
+    
+    //
+    // Join SMP
+    // ---------
+    __asm("MOV     r0, #0x0");                  // Move CPU ID into r0
+    __asm("MOV     r1, #0xF");                  // Move 0xF (represents all four ways) into r1
+    __asm("BL      secure_SCU_invalidate");
+    __asm("BL      join_smp");
+    __asm("BL      enable_maintenance_broadcast");
+    
+    ASM(
+    // Clear the BSS
+    "\n     eor     r0, r0"
+    "\n     ldr     r1, =__bss_start__"
+    "\n     ldr     r2, =__bss_end__"
+    "\n .L1:"
+    "\n     str     r0, [r1]"
+    "\n     add     r1, #4"
+    "\n     cmp     r1, r2"
+    "\n     blt     .L1"
     "\n");
 
-    __asm("b _mcu_start");
+    //
+    // GIC Init
+    // ---------
+    __asm("BL      enable_GIC");
+    __asm("BL      enable_gic_processor_interface");
+
+    //
+    // Branch to C lib code
+    // ----------------------
+    // __asm("B       __main");
+    __asm("b _start");
+
+    // ------------------------------------------------------------
+    // Initialization for SECONDARY CPUs
+    // ------------------------------------------------------------
+    __asm("secondary_cpus_init:");
+    //
+    // GIC Init
+    // ---------
+    __asm("BL      enable_gic_processor_interface");
+
+    __asm("MOV     r0, #0x1F");                 // Priority
+    __asm("BL      set_priority_mask");
+
+    __asm("MOV     r0, #0x0");                  // ID
+    __asm("BL      enable_irq_id");
+
+    __asm("MOV     r0, #0x0");                  // ID
+    __asm("MOV     r1, #0x0");                  // Priority
+    __asm("BL      set_irq_priority");
+
+    //
+    // Join SMP
+    // ---------
+    __asm("MRC     p15, 0, r0, c0, c0, 5");     // Read CPU ID register
+    __asm("ANDS    r0, r0, #0x03");             // Mask off, leaving the CPU ID field
+    __asm("MOV     r1, #0xF");                  // Move 0xF (represents all four ways) into r1
+    __asm("BL      secure_SCU_invalidate");
+    
+    __asm("BL      join_smp");
+    __asm("BL      enable_maintenance_broadcast");
+
+    // //
+    // // Holding Pen
+    // // ------------
+    // __asm("MOV     r2, #0x00");                 // Clear r2
+    // __asm("CPSIE   i");                         // Enable interrupts
+
+    // __asm("holding_pen:");
+    // __asm("CMP     r2, #0x0");                  // r2 will be set to 0x1 by IRQ handler on receiving SGI
+    // __asm("WFIEQ");
+    // __asm("BEQ     holding_pen");
+    // __asm("CPSID   i");                         // IRQs not used in reset of example, so mask out interrupts
+
+    //
+    // Branch to C lib code
+    // ----------------------
+    // __asm("B       __main");
+    __asm("b _start");
 }
