@@ -1,6 +1,7 @@
 // EPOS Cortex-A SETUP
 
 #include <system/config.h>
+#include <architecture/armv7/cache.h>
 #include <machine/cortex_a/scu.h>
 #include <machine/cortex_a/gic.h>
 
@@ -35,6 +36,9 @@ void _vector_table()
     __asm("blne    read_irq_ack");      // Pega SGI ID (=0), se CPU != 0
     __asm("blne    write_end_of_irq");  // EOI (ID=0), se CPU != 0
 
+    // Relocated the Vector Table
+    ASM("mcr p15, 0, %0, c12, c0, 0" : : "p"(Traits<Machine>::VECTOR_TABLE));
+
     //
     // MMU Init
     // ---------
@@ -47,14 +51,17 @@ void _vector_table()
     //
     // Clear Branch Prediction Array
     // ------------------------------
-    __asm("MOV     r0, #0x0");
-    __asm("MCR     p15, 0, r0, c7, c5, 6");     // BPIALL - Invalidate entire branch predictor array
+    __asm("BL      invalidate_branch_target_cache");
 
     //
     // Invalidate TLBs
     //------------------
-    __asm("MOV     r0, #0x0");
-    __asm("MCR     p15, 0, r0, c8, c7, 0");     // TLBIALL - Invalidate entire Unifed TLB
+    __asm("BL      invalidate_unified_tlb");
+
+    //
+    // Enable DSide Prefetch
+    //------------------
+    // (?How?)
 
     //
     // Set up Domain Access Control Reg
@@ -67,6 +74,8 @@ void _vector_table()
     __asm("MOV     r0, #0x01");
     __asm("MCR     p15, 0, r0, c3, c0, 0");
 
+    __asm("DSB");
+    __asm("ISB");
 
     // Page tables
     // -------------------------
@@ -82,7 +91,7 @@ void _vector_table()
 
     // Calculate offset for this CPU
     // __asm("LDR     r0, =||Image$$PAGETABLES$$ZI$$Base||");
-    __asm("LDR     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::STACK_SIZE));
+    __asm("LDR     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::PAGE_TABLES));
     __asm("MRC     p15, 0, r1, c0, c0, 5");     // Read Multiprocessor Affinity Register
     __asm("ANDS    r1, r1, #0x03");             // Mask off, leaving the CPU ID field
     __asm("MOV     r1, r1, LSL #14");           // Convert core ID into a 16K offset (this is the size of the table)
@@ -194,6 +203,8 @@ void _vector_table()
     //
     // MMU now enable - Virtual address system now active
     //
+    __asm("DSB");
+    __asm("ISB");
 
     //
     // Branch Prediction Init
@@ -225,7 +236,11 @@ void _vector_table()
     __asm("BL      secure_SCU_invalidate");
     __asm("BL      join_smp");
     __asm("BL      enable_maintenance_broadcast");
-    
+    // scu_enable_cache_coherence() // (?HOW?)
+
+    volatile unsigned int * SYS_FLAGSSET = (volatile unsigned int *) 0x10000030;
+    *SYS_FLAGSSET = Traits<Machine>::VECTOR_TABLE;
+
     ASM(
     // Clear the BSS
     "\n     eor     r0, r0"
@@ -243,6 +258,9 @@ void _vector_table()
     // ---------
     __asm("BL      enable_GIC");
     __asm("BL      enable_gic_processor_interface");
+
+    enable_irq_id(0x0);         // Is it necessary?
+    send_sgi(0x0, 0x0f, 0x01);  // Wake the secondary CPUs by sending SGI (ID 0)
 
     //
     // Branch to C lib code
@@ -279,6 +297,7 @@ void _vector_table()
     
     __asm("BL      join_smp");
     __asm("BL      enable_maintenance_broadcast");
+    // scu_enable_cache_coherence() // (?HOW?)
 
     // //
     // // Holding Pen
