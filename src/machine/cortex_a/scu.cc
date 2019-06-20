@@ -44,6 +44,7 @@ extern "C" {
     
     __asm("LDR     r0, [r0, #0x004]");        // Read SCU Configuration register
     __asm("AND     r0, r0, #0x3");            // Bits 1:0 gives the number of cores
+    __asm("ADD     r0, #1");
 
     __asm("BX      lr");
     /* ENDP */
