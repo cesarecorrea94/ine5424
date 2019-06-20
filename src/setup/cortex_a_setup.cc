@@ -37,7 +37,7 @@ void _vector_table()
     __asm("blne    write_end_of_irq");  // EOI (ID=0), se CPU != 0
 
     // Relocated the Vector Table
-    ASM("mcr p15, 0, %0, c12, c0, 0" : : "p"(Traits<Machine>::VECTOR_TABLE));
+    ASM("mcr p15, 0, %0, c12, c0, 0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::VECTOR_TABLE));
 
     //
     // MMU Init
@@ -91,7 +91,7 @@ void _vector_table()
 
     // Calculate offset for this CPU
     // __asm("LDR     r0, =||Image$$PAGETABLES$$ZI$$Base||");
-    __asm("LDR     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::PAGE_TABLES));
+    __asm("MOV     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::PAGE_TABLES));
     __asm("MRC     p15, 0, r1, c0, c0, 5");     // Read Multiprocessor Affinity Register
     __asm("ANDS    r1, r1, #0x03");             // Mask off, leaving the CPU ID field
     __asm("MOV     r1, r1, LSL #14");           // Convert core ID into a 16K offset (this is the size of the table)
@@ -109,46 +109,46 @@ void _vector_table()
     __asm("SUBS    r2, r2, #1");                // Decrement counter
     __asm("BNE     ttb_zero_loop");
 
-    //
-    // STANDARD ENTRIES
-    //
+    // //
+    // // STANDARD ENTRIES
+    // //
 
-    // Entry for VA 0x0
-    // This region must be coherent
-    __asm("LDR     r1, =PABASE_VA0");           // Physical address
-    __asm("LDR     r2, =TTB_COHERENT");         // Descriptor template
-    __asm("ORR     r1, r1, r2");                // Combine address and template
-    __asm("STR     r1, [r0]");
+    // // Entry for VA 0x0
+    // // This region must be coherent
+    // __asm("LDR     r1, =PABASE_VA0");           // Physical address
+    // __asm("LDR     r2, =TTB_COHERENT");         // Descriptor template
+    // __asm("ORR     r1, r1, r2");                // Combine address and template
+    // __asm("STR     r1, [r0]");
 
-    // Entry for VA 0x0010,0000
-    // Each CPU stores private data in this address range
-    // Using the MMU to map to different PA on each CPU.
-    // 
-    // CPU 0 - PA Base
-    // CPI 1 - PA Base + 1MB
-    // CPU 2 - PA Base + 2MB
-    // CPU 3 - PA Base + 3MB
+    // // Entry for VA 0x0010,0000
+    // // Each CPU stores private data in this address range
+    // // Using the MMU to map to different PA on each CPU.
+    // // 
+    // // CPU 0 - PA Base
+    // // CPI 1 - PA Base + 1MB
+    // // CPU 2 - PA Base + 2MB
+    // // CPU 3 - PA Base + 3MB
 
-    __asm("MRC     p15, 0, r1, c0, c0, 5");     // Re-read Multiprocessor Affinity Register
-    __asm("AND     r1, r1, #0x03");             // Mask off, leaving the CPU ID field
-    __asm("MOV     r1, r1, LSL #20");           // Convert core ID into a MB offset
+    // __asm("MRC     p15, 0, r1, c0, c0, 5");     // Re-read Multiprocessor Affinity Register
+    // __asm("AND     r1, r1, #0x03");             // Mask off, leaving the CPU ID field
+    // __asm("MOV     r1, r1, LSL #20");           // Convert core ID into a MB offset
     
-    __asm("LDR     r3, =PABASE_VA1");           // Base PA
-    __asm("ADD     r1, r1, r3");                // Add CPU offset to PA
-    __asm("LDR     r2, =TTB_NONCOHERENT");      // Descriptor template
-    __asm("ORR     r1, r1, r2");                // Combine address and template
-    __asm("STR     r1, [r0, #4]");
+    // __asm("LDR     r3, =PABASE_VA1");           // Base PA
+    // __asm("ADD     r1, r1, r3");                // Add CPU offset to PA
+    // __asm("LDR     r2, =TTB_NONCOHERENT");      // Descriptor template
+    // __asm("ORR     r1, r1, r2");                // Combine address and template
+    // __asm("STR     r1, [r0, #4]");
 
-    // Entry for private address space
-    // Needs to be marked as Device memory
-    __asm("MRC     p15, 4, r1, c15, c0, 0");    // Get base address of private address space
-    __asm("LSR     r1, r1, #20");               // Clear bottom 20 bits, to find which 1MB block its in
-    __asm("LSL     r2, r1, #2");                // Make a copy, and multiply by four.  This gives offset into the page tables
-    __asm("LSL     r1, r1, #20");               // Put back in address format
+    // // Entry for private address space
+    // // Needs to be marked as Device memory
+    // __asm("MRC     p15, 4, r1, c15, c0, 0");    // Get base address of private address space
+    // __asm("LSR     r1, r1, #20");               // Clear bottom 20 bits, to find which 1MB block its in
+    // __asm("LSL     r2, r1, #2");                // Make a copy, and multiply by four.  This gives offset into the page tables
+    // __asm("LSL     r1, r1, #20");               // Put back in address format
 
-    __asm("LDR     r3, =TTB_DEVICE");           // Descriptor template
-    __asm("ORR     r1, r1, r3");                // Combine address and template
-    __asm("STR     r1, [r0, r2]");
+    // __asm("LDR     r3, =TTB_DEVICE");           // Descriptor template
+    // __asm("ORR     r1, r1, r3");                // Combine address and template
+    // __asm("STR     r1, [r0, r2]");
     
     //
     // OPTIONAL ENTRIES
@@ -239,7 +239,7 @@ void _vector_table()
     // scu_enable_cache_coherence() // (?HOW?)
 
     volatile unsigned int * SYS_FLAGSSET = (volatile unsigned int *) 0x10000030;
-    *SYS_FLAGSSET = Traits<Machine>::VECTOR_TABLE;
+    *SYS_FLAGSSET = EPOS::S::Traits<EPOS::S::Machine>::VECTOR_TABLE;
 
     ASM(
     // Clear the BSS
