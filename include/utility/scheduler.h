@@ -166,10 +166,31 @@ namespace Scheduling_Criteria
         using HRRN::preemptive;
         static const unsigned int QUEUES = Traits<Machine>::CPUS;
 
+        static unsigned int queue_service[QUEUES];
+        static unsigned int choose_queue(int service_time) {
+            // Danger: Race Condition
+            unsigned int chosed = 0;
+            for(unsigned i = 1; i < QUEUES; ++i) {
+                if(queue_service[i] < queue_service[chosed])
+                    chosed = i;
+            }
+            unsigned int min_busy = queue_service[chosed];
+            for(unsigned i = 0; i < QUEUES; ++i) {
+                queue_service[i] -= min_busy;
+            }
+            queue_service[chosed] = service_time;
+            return chosed;
+        }
+        static unsigned int inc_queue(int cpu, int service_time) {
+            queue_service[cpu] += service_time;
+            return cpu;
+        }
+
     public:
         template <typename ... Tn>
         P_HRRN(int p = NORMAL, int cpu = ANY, Tn & ... an)
-        : HRRN(p), Variable_Queue(((_priority == IDLE) || (_priority == MAIN)) ? Machine::cpu_id() : (cpu != ANY) ? cpu : ++_next_queue %= Machine::n_cpus()) {}
+        : HRRN(p), Variable_Queue(((_priority == IDLE) || (_priority == MAIN)) ?
+                    Machine::cpu_id() : (cpu != ANY) ? inc_queue(cpu, p) : choose_queue(p)) {}
 
         using Variable_Queue::queue;
 
