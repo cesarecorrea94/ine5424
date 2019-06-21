@@ -5,33 +5,154 @@
 
 #include <architecture/cpu.h>
 #include <machine/ic.h>
+#include <machine/cortex_a/gic.h>
 #include __MODEL_H
 
 __BEGIN_SYS
 
-class IC: private Engine
+class GIC: public IC_Common, protected Machine_Model
+{
+public:
+    // IRQs
+    static const unsigned int IRQS = Machine_Model::IRQS;
+    typedef Interrupt_Id IRQ;
+    enum {
+        IRQ_SOFTWARE0           = 0,
+        // IRQ_SOFTWARE1           = 1,
+        // IRQ_SOFTWARE2           = 2,
+        // IRQ_SOFTWARE3           = 3,
+        // IRQ_SOFTWARE4           = 4,
+        // IRQ_SOFTWARE5           = 5,
+        // IRQ_SOFTWARE6           = 6,
+        // IRQ_SOFTWARE7           = 7,
+        // IRQ_SOFTWARE8           = 8,
+        // IRQ_SOFTWARE9           = 9,
+        // IRQ_SOFTWARE10          = 10,
+        // IRQ_SOFTWARE11          = 11,
+        // IRQ_SOFTWARE12          = 12,
+        // IRQ_SOFTWARE13          = 13,
+        // IRQ_SOFTWARE14          = 14,
+        // IRQ_SOFTWARE15          = 15,
+        // IRQ_GIC0                = 16,
+        // IRQ_GIC1                = 17,
+        // IRQ_GIC2                = 18,
+        // IRQ_GIC3                = 19,
+        // IRQ_GIC4                = 20,
+        // IRQ_GIC5                = 21,
+        // IRQ_GIC6                = 22,
+        // IRQ_GIC7                = 23,
+        // IRQ_GIC8                = 24,
+        // IRQ_GIC9                = 25,
+        // IRQ_GIC10               = 26,
+        // IRQ_GIC11_GLOBAL_TIMER  = 27,
+        // IRQ_GIC12               = 28,
+        IRQ_GIC13_PRIV_TIMER    = 29,
+        // IRQ_GIC14               = 30,
+        // IRQ_GIC15               = 31,
+        // IRQ_WATCHDOG            = 32,
+        // IRQ_SOFTWARE            = 33,
+        // IRQ_COMMRX              = 34,
+        // IRQ_COMMTX              = 35,
+        // IRQ_TIMER0AND1          = 36,
+        // IRQ_TIMER2AND3          = 37,
+        // IRQ_RTC                 = 42,
+        // IRQ_UART0               = 44,
+        // IRQ_UART1               = 45,
+        // IRQ_UART2               = 46,
+        // IRQ_UART3               = 47,
+        // IRQ_DMAC                = 56,
+        // IRQ_T1_INT0             = 64,
+        // IRQ_T1_INT1             = 65,
+        // IRQ_T1_INT2             = 66,
+        // IRQ_T1_INT3             = 67,
+        // IRQ_T1_INT4             = 68,
+        // IRQ_T1_INT5             = 69,
+        // IRQ_T1_INT6             = 70,
+        // IRQ_T1_INT7             = 71,
+        // IRQ_T2_INT0             = 72,
+        // IRQ_T2_INT1             = 73,
+        // IRQ_T2_INT2             = 74,
+        // IRQ_T2_INT3             = 75,
+        // IRQ_T2_INT4             = 76,
+        // IRQ_T2_INT5             = 77,
+        // IRQ_T2_INT6             = 78,
+        // IRQ_T2_INT7             = 79,
+    };
+
+    // Interrupts
+    static const unsigned int INTS = 96;
+    // static const unsigned int LAST_INT = INTS;
+    static const unsigned int EXC_INT = 0;
+    // static const unsigned int HARD_INT = 16;
+    // static const unsigned int SOFT_INT = HARD_INT + IRQS;
+    enum {
+        INT_TIMER = IRQ_GIC13_PRIV_TIMER,
+        // INT_USER_TIMER0  = IRQ_TIMER0AND1,
+        // INT_USER_TIMER1  = IRQ_TIMER0AND1,
+        // INT_USER_TIMER2  = IRQ_TIMER2AND3,
+        // INT_USER_TIMER3  = IRQ_TIMER2AND3,
+        INT_RESCHEDULER  = IRQ_SOFTWARE0,
+    };
+
+public:
+    GIC() {}
+
+    static int irq2int(int i) { return i; }
+    static int int2irq(int i) { return i; }
+
+    static void enable() {
+        for(Interrupt_Id id = 0; id < IRQS; ++id){
+            enable(id);
+            // set_irq_priority(id, 0x0);
+        }
+    }
+
+    static void enable(const Interrupt_Id & id) {
+        enable_irq_id(id);
+    }
+
+    static void disable() {
+        for(Interrupt_Id id = 0; id < IRQS; ++id)
+            disable(id);
+    }
+
+    static void disable(const Interrupt_Id & id) {
+        disable_irq_id(id);
+    }
+
+    // Only works in handler mode (inside IC::entry())
+    static Interrupt_Id int_id() { 
+        Interrupt_Id int_ack = read_irq_ack() & 0X3ff; // 10 bits mask
+        write_end_of_irq(int_ack);
+        return int_ack;
+    }
+
+    static void init() {
+        enable_GIC();
+        enable_gic_processor_interface();
+        enable();
+        set_priority_mask(0xFF);
+        // __asm("MRS    r0, CPSR");
+        // __asm("BIC    r0, r0, #0x80"); // Clears the CPSR I bit
+        // __asm("MSR    CPSR_c, r0");
+    };
+};
+
+class IC: private GIC
 {
     friend class Machine;
 
 private:
+    typedef GIC Engine;
 
 public:
     using IC_Common::Interrupt_Id;
     using IC_Common::Interrupt_Handler;
     using Engine::INT_TIMER;
-    using Engine::INT_USER_TIMER0;
-    using Engine::INT_USER_TIMER1;
-    using Engine::INT_USER_TIMER2;
-    using Engine::INT_USER_TIMER3;
-    using Engine::INT_GPIOA;
-    using Engine::INT_GPIOB;
-    using Engine::INT_GPIOC;
-    using Engine::INT_GPIOD;
-    using Engine::INT_USB0;
-    using Engine::INT_NIC0_RX;
-    using Engine::INT_NIC0_TX;
-    using Engine::INT_NIC0_ERR;
-    using Engine::INT_NIC0_TIMER;
+    // using Engine::INT_USER_TIMER0;
+    // using Engine::INT_USER_TIMER1;
+    // using Engine::INT_USER_TIMER2;
+    // using Engine::INT_USER_TIMER3;
     using Engine::INT_RESCHEDULER;
 
 public:
