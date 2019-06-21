@@ -7,6 +7,7 @@
     /* AREA  v7CacheOpp,CODE,READONLY */
 
 #include <architecture/armv7/cache.h>
+extern "C" {
 // ------------------------------------------------------------
 // Cache Maintenance
 // ------------------------------------------------------------
@@ -262,7 +263,7 @@
     /* EXPORT invalidate_unified_tlb */
     __attribute__((naked)) void invalidate_unified_tlb(void){
 /* invalidate_unified_tlb PROC */
-    __asm("MOV     r0, #1");
+    __asm("MOV     r0, #0");
     __asm("MCR     p15, 0, r0, c8, c7, 0");                 // TLBIALL - Invalidate entire unified TLB
     __asm("BX      lr");
     /* ENDP */
@@ -380,3 +381,4 @@
 // ------------------------------------------------------------
 // End of v7.s
 // ------------------------------------------------------------
+}

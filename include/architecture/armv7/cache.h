@@ -11,7 +11,7 @@
 // #include "kernel.h"
 #include <architecture/cpu.h>
 typedef EPOS::S::CPU::Reg32 uint32_t;
-
+extern "C" {
 //
 // Note:
 // *_is() stands for "inner shareable"
@@ -111,6 +111,7 @@ void set_context_id(uint32_t);
 // tmp    = get_context_id();
 // ASID   = tmp & CONTEXTID_ASID_MASK;
 // PROCID = (tmp >> CONTEXTID_PROCID_SHIFT) & CONTEXTID_PROCID_MASK;
+}
 
 #endif
 
