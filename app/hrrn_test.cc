@@ -73,7 +73,7 @@ int task_func(int tid, int ticks) {
     // thread function (simulates a thread running by 'ticks' ticks)
     info(tid, ST, Alarm::elapsed());
     for(int delay = 0; delay < ticks; delay++) {
-        gantt(tid, 'X');
+        gantt(tid, '0'+Machine::cpu_id());
         CPU::halt();
     }
     info(tid, FT, Alarm::elapsed());
