@@ -42,7 +42,7 @@ namespace Scheduling_Criteria
         template <typename ... Tn>
         Priority(int p = NORMAL, Tn & ... an): _priority(p) {}
 
-        operator const volatile int() const volatile { return _priority; }
+        virtual operator const volatile int() const volatile { return _priority; }
 
         unsigned int queue() const { return 0; }
 
@@ -78,6 +78,35 @@ namespace Scheduling_Criteria
         FCFS(Tn & ... an) {}
     };
 
+    // Highest Response Ratio Next
+    class HRRN: public Priority 
+    {
+        typedef Timer_Common::Tick Tick;
+    public:
+        // Service Time
+        enum {
+            MAIN   = 0,
+            HIGH   = (unsigned(1) << ((sizeof(int)-1) * 8 + 2)),
+            NORMAL = (unsigned(1) << ((sizeof(int)-1) * 8 + 3)),
+            LOW    = (unsigned(1) << ((sizeof(int)-1) * 8 + 4)),
+            IDLE   = (unsigned(1) << ( sizeof(int)    * 8 - 1)) - 1 // Max signed int
+        };
+
+        // Policy traits
+        static const bool timed = false;
+        static const bool dynamic = true;
+        static const bool preemptive = false;
+
+    public:
+        HRRN(int p = NORMAL);
+
+        operator const volatile int() const volatile override;
+
+    protected:
+        using Priority::_priority; // service_time
+        Tick _create_time;
+    };
+    
 
     // Multicore Algorithms
     class Variable_Queue
@@ -112,6 +141,61 @@ namespace Scheduling_Criteria
 
         static unsigned int current_queue() { return Machine::cpu_id(); }
     };
+
+    // Global HRRN
+    class G_HRRN: public HRRN
+    {
+    public:
+        using HRRN::timed;
+        using HRRN::dynamic;
+        using HRRN::preemptive;
+        static const unsigned int HEADS = Traits<Machine>::CPUS;
+
+    public:
+        G_HRRN(int p = NORMAL): HRRN(p) {}
+
+        static unsigned int current_head() { return Machine::cpu_id(); }
+    };
+
+    // Partitioned HRRN
+    class P_HRRN: public HRRN, public Variable_Queue
+    {
+    public:
+        using HRRN::timed;
+        using HRRN::dynamic;
+        using HRRN::preemptive;
+        static const unsigned int QUEUES = Traits<Machine>::CPUS;
+
+        static unsigned int queue_service[QUEUES];
+        static unsigned int choose_queue(int service_time) {
+            // Danger: Race Condition
+            unsigned int chosed = 0;
+            for(unsigned i = 1; i < QUEUES; ++i) {
+                if(queue_service[i] < queue_service[chosed])
+                    chosed = i;
+            }
+            unsigned int min_busy = queue_service[chosed];
+            for(unsigned i = 0; i < QUEUES; ++i) {
+                queue_service[i] -= min_busy;
+            }
+            queue_service[chosed] = service_time;
+            return chosed;
+        }
+        static unsigned int inc_queue(int cpu, int service_time) {
+            queue_service[cpu] += service_time;
+            return cpu;
+        }
+
+    public:
+        template <typename ... Tn>
+        P_HRRN(int p = NORMAL, int cpu = ANY, Tn & ... an)
+        : HRRN(p), Variable_Queue(((_priority == IDLE) || (_priority == MAIN)) ?
+                    Machine::cpu_id() : (cpu != ANY) ? inc_queue(cpu, p) : choose_queue(p)) {}
+
+        using Variable_Queue::queue;
+
+        static unsigned int current_queue() { return Machine::cpu_id(); }
+    };
 }
 
 
@@ -121,6 +205,14 @@ class Scheduling_Queue: public Scheduling_List<T> {};
 
 template<typename T>
 class Scheduling_Queue<T, Scheduling_Criteria::CPU_Affinity>:
+public Scheduling_Multilist<T> {};
+
+template<typename T>
+class Scheduling_Queue<T, Scheduling_Criteria::G_HRRN>:
+public Multihead_Scheduling_List<T> {};
+
+template<typename T>
+class Scheduling_Queue<T, Scheduling_Criteria::P_HRRN>:
 public Scheduling_Multilist<T> {};
 
 // Scheduler

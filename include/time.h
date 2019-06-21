@@ -36,6 +36,7 @@ class Alarm
     friend class System;                        // for init()
     friend class Alarm_Chronometer;             // for elapsed()
     friend class Scheduling_Criteria::FCFS;     // for ticks() and elapsed()
+    friend class Scheduling_Criteria::HRRN;     // for ticks() and elapsed()
 
 private:
     typedef Timer::Tick Tick;
@@ -61,12 +62,12 @@ public:
 
     static void delay(const Microsecond & time);
 
-private:
-    static void init();
-
     static volatile Tick & elapsed() { return _elapsed; }
 
     static Microsecond timer_period() { return 1000000 / frequency(); }
+
+private:
+    static void init();
     static Tick ticks(const Microsecond & time) { return (time + timer_period() / 2) / timer_period(); }
 
     static void lock();
