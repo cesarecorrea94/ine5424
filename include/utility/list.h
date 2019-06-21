@@ -1057,6 +1057,7 @@ public:
     Element * choose() {
         db<Lists>(TRC) << "Scheduling_List::choose()" << endl;
 
+        if(Rank_Type::dynamic) reevaluate();
         if(!empty()) {
             Base::insert(_chosen);
             _chosen = Base::remove_head();
@@ -1068,6 +1069,7 @@ public:
     Element * choose_another() {
         db<Lists>(TRC) << "Scheduling_List::choose_another()" << endl;
 
+        if(Rank_Type::dynamic) reevaluate();
         if(!empty() && head()->rank() != R::IDLE) {
             Element * tmp = _chosen;
             _chosen = Base::remove_head();
@@ -1084,12 +1086,30 @@ public:
                        << ",n=" << (e ? e->next() : (void *) -1)
                        << "}" << endl;
 
+        if(Rank_Type::dynamic) reevaluate();
         if(e != _chosen) {
             Base::insert(_chosen);
             _chosen = Base::remove(e);
         }
 
         return _chosen;
+    }
+
+private:
+    void reevaluate() {
+        if(this->size() < 2) return;
+        for(Element *next,
+                *e = this->head()->next();
+                e != this->tail(); 
+                e = next) {
+            next = e->next();
+            // Itera pela lista de escalonamento, removendo cada thread da lista e repondo com o rank atualizado.
+            // Para evitar de repetir a mesma thread na iteração (i.e. ser inserida além da posição atual)
+            if(e->prev()->rank() <= e->rank())   // Se este elemento já está no devido lugar
+                continue;
+            this->remove(e);
+            this->insert(e);
+        }
     }
 
 private:
