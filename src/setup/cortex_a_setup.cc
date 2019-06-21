@@ -25,16 +25,21 @@ void _vector_table()
         b   _int_entry                // _irq                                \t\n\
         b   _fiq                                                             \t\n\
         ");
+
+
+
     __asm("_reset:");
 
     // Set a temporary Stack Pointer for INIT
     // Mains stack will be allocated by Thread::init()
     // "\n     ldr     r0, =__boot_stack__"
     // "\n     mov     sp, r0"
-    __asm("bl      get_cpu_id");
-    __asm("mul     r0, %0" : : "p"(EPOS::S::Traits<EPOS::S::Machine>::STACK_SIZE));
-    __asm("ldr     sp, =__boot_stack__");
-    __asm("sub     sp, r0");
+    __asm("mrc p15, 0, r2, c0, c0, 5");
+    __asm("ands r2, r2, #0x03");
+    __asm("mov r2, r2, LSL #14");
+    __asm("ldr r1, =__boot_stack__ ");
+    __asm("sub r1, r1, r2");
+    __asm("mov sp, r1");
 
     ASM(
     // 1.MMU, L1$ disable

@@ -8,7 +8,7 @@
         .type   _mcu_start, function
 _mcu_start:
         // Temporary Stack Pointer for INIT
-        // Main's stack will be allocated by Thread::init()  
+        // Mains stack will be allocated by Thread init 
         ldr     r0, =__boot_stack__
         mov     sp, r0
 
@@ -27,7 +27,7 @@ _mcu_start:
         .global _start
         .type   _start, function
 _start:
-        // Temporary stack(s) for INIT are created and configure by SETUP
+        // Temporary stack for INIT are created and configure by SETUP
 
         // Call _init
         bl      _init
@@ -39,6 +39,6 @@ _start:
 __epos_app_entry:
         bl      __pre_main
         bl      main
-        push    {r0}         // save main's return value to be used by exit()
+        push    {r0}         // save mains return value to be used by exit
         bl      _fini
         bl      _exit

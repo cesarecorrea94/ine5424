@@ -128,8 +128,8 @@ public:
     }
 
     static void init() {
-         enable_GIC();
-         enable_gic_processor_interface();
+        // enable_GIC();
+        // enable_gic_processor_interface();
          enable();
          set_priority_mask(0xFF);
         // __asm("MRS    r0, CPSR");

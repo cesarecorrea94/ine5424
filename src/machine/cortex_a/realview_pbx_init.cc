@@ -20,10 +20,10 @@ void Realview_PBX::pre_init()
         IC::enable(0);
         send_sgi(0x0, 0x0F, 0x01); // Wake the secondary CPUs by sending SGI (ID 0)
         // eoi após sgi (em cada CPUs)
-        IC::disable(0);
+        //IC::disable(0);
         // Machine::smp_init(get_num_cpus());
     }
-    // Machine::smp_barrier();
+     Machine::smp_barrier();
 }
 
 void Realview_PBX::init()
