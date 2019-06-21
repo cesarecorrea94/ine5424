@@ -141,6 +141,40 @@ namespace Scheduling_Criteria
 
         static unsigned int current_queue() { return Machine::cpu_id(); }
     };
+
+    // Global HRRN
+    class G_HRRN: public HRRN
+    {
+    public:
+        using HRRN::timed;
+        using HRRN::dynamic;
+        using HRRN::preemptive;
+        static const unsigned int HEADS = Traits<Machine>::CPUS;
+
+    public:
+        G_HRRN(int p = NORMAL): HRRN(p) {}
+
+        static unsigned int current_head() { return Machine::cpu_id(); }
+    };
+
+    // Partitioned HRRN
+    class P_HRRN: public HRRN, public Variable_Queue
+    {
+    public:
+        using HRRN::timed;
+        using HRRN::dynamic;
+        using HRRN::preemptive;
+        static const unsigned int QUEUES = Traits<Machine>::CPUS;
+
+    public:
+        template <typename ... Tn>
+        P_HRRN(int p = NORMAL, int cpu = ANY, Tn & ... an)
+        : HRRN(p), Variable_Queue(((_priority == IDLE) || (_priority == MAIN)) ? Machine::cpu_id() : (cpu != ANY) ? cpu : ++_next_queue %= Machine::n_cpus()) {}
+
+        using Variable_Queue::queue;
+
+        static unsigned int current_queue() { return Machine::cpu_id(); }
+    };
 }
 
 
@@ -150,6 +184,14 @@ class Scheduling_Queue: public Scheduling_List<T> {};
 
 template<typename T>
 class Scheduling_Queue<T, Scheduling_Criteria::CPU_Affinity>:
+public Scheduling_Multilist<T> {};
+
+template<typename T>
+class Scheduling_Queue<T, Scheduling_Criteria::G_HRRN>:
+public Multihead_Scheduling_List<T> {};
+
+template<typename T>
+class Scheduling_Queue<T, Scheduling_Criteria::P_HRRN>:
 public Scheduling_Multilist<T> {};
 
 // Scheduler
