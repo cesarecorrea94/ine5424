@@ -42,7 +42,7 @@ namespace Scheduling_Criteria
         template <typename ... Tn>
         Priority(int p = NORMAL, Tn & ... an): _priority(p) {}
 
-        operator const volatile int() const volatile { return _priority; }
+        virtual operator const volatile int() const volatile { return _priority; }
 
         unsigned int queue() const { return 0; }
 
@@ -78,6 +78,35 @@ namespace Scheduling_Criteria
         FCFS(Tn & ... an) {}
     };
 
+    // Highest Response Ratio Next
+    class HRRN: public Priority 
+    {
+        typedef Timer_Common::Tick Tick;
+    public:
+        // Service Time
+        enum {
+            MAIN   = 0,
+            HIGH   = (unsigned(1) << ((sizeof(int)-1) * 8 + 2)),
+            NORMAL = (unsigned(1) << ((sizeof(int)-1) * 8 + 3)),
+            LOW    = (unsigned(1) << ((sizeof(int)-1) * 8 + 4)),
+            IDLE   = (unsigned(1) << ( sizeof(int)    * 8 - 1)) - 1 // Max signed int
+        };
+
+        // Policy traits
+        static const bool timed = false;
+        static const bool dynamic = true;
+        static const bool preemptive = false;
+
+    public:
+        HRRN(int p = NORMAL);
+
+        operator const volatile int() const volatile override;
+
+    protected:
+        using Priority::_priority; // service_time
+        Tick _create_time;
+    };
+    
 
     // Multicore Algorithms
     class Variable_Queue
