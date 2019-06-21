@@ -13,8 +13,8 @@ void Realview_PBX::pre_init()
 {
     db<Init, Machine>(TRC) << "Realview_PBX::pre_init()" << endl;
     //Pré inicializações do realview aqui se necessário!!!
+    ASM("mcr p15, 0, %0, c12, c0, 0" : : "p"(Traits<Machine>::VECTOR_TABLE));
     if(Machine::cpu_id() == 0){
-        ASM("mcr p15, 0, %0, c12, c0, 0" : : "p"(Traits<Machine>::VECTOR_TABLE));
         volatile unsigned int * SYS_FLAGSSET = (volatile unsigned int *) 0x10000030;
         *SYS_FLAGSSET = Traits<Machine>::VECTOR_TABLE;
         IC::enable(0);
