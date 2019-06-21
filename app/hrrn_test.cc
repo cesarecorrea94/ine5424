@@ -28,7 +28,7 @@ const int first_burst = 3; // number of threads to be created at beginning
 const int shift_ticks = (sizeof(int)-1)*8; // shift on number of execution ticks per criterion (take less time and space on gantt)
 const int creation_interval = (Thread::Criterion::HIGH >> (shift_ticks+1)) +1; // interval between threads creation
 
-Mutex table;
+Semaphore table;
 OStream cout;
 
 enum pos {
@@ -41,10 +41,10 @@ enum pos {
 template<typename T>
 void info(int tid, pos p, T out) {
     // print information about a given thread (tid)
-    table.lock();
+    table.p();
     Display::position(1+tid, p);
     cout << out;
-    table.unlock();
+    table.v();
 }
 
 void info() {
@@ -63,10 +63,10 @@ void info() {
 
 void gantt(int tid, char c) {
     // plot on the gantt chart ('|' = creation ; 'X' = execution)
-    table.lock();
+    table.p();
     Display::position(nTasks+1+tid, Alarm::elapsed() +1);
     cout << c;
-    table.unlock();
+    table.v();
 }
 
 int task_func(int tid, int ticks) {
