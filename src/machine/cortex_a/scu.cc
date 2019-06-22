@@ -14,7 +14,7 @@ extern "C" {
 // ------------------------------------------------------------
 
 /* EXPORT get_base_addr */
-__attribute__((naked)) unsigned int get_base_addr(void){
+__attribute__((naked)) unsigned int get_base_addr_asm(void){
     // Returns the base address of the private peripheral memory space
     /* get_base_addr PROC */
     __asm("MRC     p15, 4, r0, c15, c0, 0");  // Read periph base address      (see DE593076)
@@ -22,7 +22,7 @@ __attribute__((naked)) unsigned int get_base_addr(void){
     /* ENDP */
 }
 
-unsigned int *get_base_addr_c(void){
+unsigned int *get_base_addr(void){
     unsigned int *periphbase;    // address periphbase
 
     __asm("MRC p15, 4, %0, c15, c0, 0" : "=r"(periphbase) : );  // Read periph base address
@@ -31,17 +31,17 @@ unsigned int *get_base_addr_c(void){
 }
 // ------------------------------------------------------------
 
-unsigned int *get_actrl_addr_c(void){
+unsigned int *get_actrl_addr(void){
     unsigned int *actlr_addr;
 
-    __asm("MRC p15, 0, r0, c1, c0, 1": "=r"(actlr_addr) :); // Read Auxiliary Control Register (ACTLR)
+    __asm("MRC p15, 0, %0, c1, c0, 1": "=r"(actlr_addr) :); // Read Auxiliary Control Register (ACTLR)
 
     return actlr_addr;
 }
 // ------------------------------------------------------------
 
 /* EXPORT get_cpu_id */
-__attribute__((naked)) unsigned int get_cpu_id(void){
+__attribute__((naked)) unsigned int get_cpu_id_asm(void){
     // Returns the CPU ID (0 to 3) of the CPU executed on
     /* get_cpu_id PROC */
     __asm("MRC     p15, 0, r0, c0, c0, 5");   // Read CPU ID register
@@ -50,7 +50,7 @@ __attribute__((naked)) unsigned int get_cpu_id(void){
     /* ENDP */
 }
 
-unsigned int get_cpu_id_c(void){
+unsigned int get_cpu_id(void){
     unsigned int *multiproc_aff_addr;    // address Multiprocessor Affinity Register
 
     __asm("MRC p15, 0, 0%, c0, c0, 5" : "=r"(multiproc_aff_addr) : );   // Read Multiprocessor Affinity Register
@@ -61,7 +61,7 @@ unsigned int get_cpu_id_c(void){
 // ------------------------------------------------------------
 
 /* EXPORT get_num_cpus */
-__attribute__((naked)) unsigned int get_num_cpus(void){
+__attribute__((naked)) unsigned int get_num_cpus_asm(void){
     // Returns the number of CPUs in the A9 Cluster
     /* get_num_cpus PROC */
 
@@ -76,15 +76,15 @@ __attribute__((naked)) unsigned int get_num_cpus(void){
     /* ENDP */
 }
 
-unsigned int get_num_cpus_c(void){
-    unsigned int *periphbase = get_base_addr_c();   // address periphbase
-    unsigned int *scu_config_addr;                  // address periphbase + 0x4
-    unsigned int scu_config_value;                  // value of scu_config_addr
-    unsigned int n_cores;                           // number of cores
+unsigned int get_num_cpus(void){
+    unsigned int *periphbase = get_base_addr();         // address periphbase
+    unsigned int *scu_config_addr;                      // address periphbase + 0x4
+    unsigned int scu_config_value;                      // value of scu_config_addr
+    unsigned int n_cores;                               // number of cores
 
-    scu_config_addr = periphbase | (unsigned) 0x4;   // SCU Configuration Register
-    scu_config_value = *(scu_config_addr);          // Read SCU Configuration register
-    n_cores = scu_config_value & 0x3;               // Bits 1:0 gives the number of cores - 1
+    *scu_config_addr = *periphbase | (unsigned int)0x4; // SCU Configuration Register
+    scu_config_value = *(scu_config_addr);              // Read SCU Configuration register
+    n_cores = scu_config_value & 0x3;                   // Bits 1:0 gives the number of cores - 1
 
     return n_cores + 1;
 }
@@ -106,7 +106,7 @@ unsigned int get_num_cpus_c(void){
     // SCU offset from base of private peripheral space --> 0x000
 
 /* EXPORT  enable_scu */
-__attribute__((naked)) void enable_scu(void){
+__attribute__((naked)) void enable_scu_asm(void){
     // Enables the SCU
     /* enable_scu PROC */
 
@@ -120,8 +120,8 @@ __attribute__((naked)) void enable_scu(void){
     /* ENDP */
 }
 
-void enable_scu_c(void){
-    unsigned int *scu_ctrl_addr = get_base_addr_c();    // periphbase == scu control
+void enable_scu(void){
+    unsigned int *scu_ctrl_addr = get_base_addr();    // periphbase == scu control
     unsigned int scu_ctrl_val = *scu_ctrl_addr;         // Read the SCU Control Register
 
     *scu_ctrl_addr = scu_ctrl_val | 0x1;                // Set bit 0 (The Enable bit) and write back
@@ -129,7 +129,7 @@ void enable_scu_c(void){
 // ------------------------------------------------------------
 
 /* EXPORT  join_smp */
-__attribute__((naked)) void join_smp(void){
+__attribute__((naked)) void join_smp_asm(void){
     // Set this CPU as participating in SMP
     /* join_smp  PROC */
 
@@ -143,8 +143,8 @@ __attribute__((naked)) void join_smp(void){
     /* ENDP */
 }
 
-void join_smp_c(void){
-    unsigned int *actlr_addr = get_actrl_addr_c();
+void join_smp(void){
+    unsigned int *actlr_addr = get_actrl_addr();
     unsigned int actlr_val;
 
     actlr_val = *actlr_addr;                                  
@@ -190,7 +190,7 @@ void join_smp_c(void){
 // ------------------------------------------------------------
 
 /* EXPORT enable_maintenance_broadcast */
-__attribute__((naked)) void enable_maintenance_broadcast(void){
+__attribute__((naked)) void enable_maintenance_broadcast_asm(void){
     // Enable the broadcasting of cache & TLB maintenance operations
     // When enabled AND in SMP, broadcast all "inner sharable"
     // cache and TLM maintenance operations to other SMP cores
@@ -203,8 +203,8 @@ __attribute__((naked)) void enable_maintenance_broadcast(void){
     /* ENDP */
 }
 
-void enable_maintenance_broadcast_c(void) {
-    unsigned int *actlr_addr = get_actrl_addr_c();
+void enable_maintenance_broadcast(void) {
+    unsigned int *actlr_addr = get_actrl_addr();
     unsigned int actlr_val = *actlr_addr;
 
     *actlr_addr = actlr_val | 0x01;
@@ -225,7 +225,7 @@ void enable_maintenance_broadcast_c(void) {
 // ------------------------------------------------------------
 
 /* EXPORT secure_SCU_invalidate */
-__attribute__((naked)) void secure_SCU_invalidate(unsigned int cpu, unsigned int ways){
+__attribute__((naked)) void secure_SCU_invalidate_asm(unsigned int cpu, unsigned int ways){
     // cpu: 0x0=CPU 0 0x1=CPU 1 etc...
     // This function invalidates the SCU copy of the tag rams
     // for the specified core.  Typically only done at start-up.
@@ -249,10 +249,11 @@ __attribute__((naked)) void secure_SCU_invalidate(unsigned int cpu, unsigned int
     /* ENDP */
 }
 
-void secure_SCU_invalidate_c(unsigned int cpu, unsigned int ways){
-    unsigned int *periphbase = get_base_addr();         // Periphbase
-    unsigned int *scu_invalid_addr = periphbase | 0x0C; // SCU Invalidate All Registers in Secure State
+void secure_SCU_invalidate(unsigned int cpu, unsigned int ways){
+    unsigned int *periphbase = get_base_addr(); // Periphbase
+    unsigned int *scu_invalid_addr;             // SCU Invalidate All Registers in Secure State
 
+    scu_invalid_addr = *periphbase | (unsigned int)0x0C;
     cpu = (cpu & 0x03) * 4;
     ways = (ways & 0x0F) * cpu;
     *scu_invalid_addr = ways;
