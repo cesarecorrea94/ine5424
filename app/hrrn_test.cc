@@ -23,12 +23,12 @@ const int criterions[] = { // Sequence of created threads' criterions
     Thread::Criterion::HIGH,
 };
 const int nTasks = sizeof(criterions)/sizeof(int); // number of threads to be created (#criterions)
-Thread * task[nTasks];
+Thread * volatile task[nTasks];
 const int first_burst = 3; // number of threads to be created at beginning
-const int shift_ticks = (sizeof(int)-1)*8; // shift on number of execution ticks per criterion (take less time and space on gantt)
+const int shift_ticks = (sizeof(int)-1)*8 -1; // shift on number of execution ticks per criterion (take less time and space on gantt)
 const int creation_interval = (Thread::Criterion::HIGH >> (shift_ticks+1)) +1; // interval between threads creation
 
-Semaphore table;
+Spin table;
 OStream cout;
 
 enum pos {
@@ -41,14 +41,15 @@ enum pos {
 template<typename T>
 void info(int tid, pos p, T out) {
     // print information about a given thread (tid)
-    table.p();
+    table.acquire();
     Display::position(1+tid, p);
     cout << out;
-    table.v();
+    table.release();
 }
 
 void info() {
     // print the information table
+    table.acquire();
     Display::position(1, 1);
     for(int tid = 0; tid < nTasks; tid++) {
         cout    << "TID:   ; " // thread id
@@ -59,14 +60,15 @@ void info() {
     }
     for(int tid = 0; tid < nTasks; tid++)
         info(tid, TID, tid);
+    table.release();
 }
 
 void gantt(int tid, char c) {
     // plot on the gantt chart ('|' = creation ; 'X' = execution)
-    table.p();
+    table.acquire();
     Display::position(nTasks+1+tid, Alarm::elapsed() +1);
     cout << c;
-    table.v();
+    table.release();
 }
 
 int task_func(int tid, int ticks) {
