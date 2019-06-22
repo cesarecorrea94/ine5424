@@ -26,8 +26,8 @@ unsigned int get_cpu_id(void);
 // This is the format of the register, decided to leave it unchanged.
 unsigned int get_num_cpus(void);
 
-// Go to sleep, never returns
-void go_to_sleep(void);
+// // Go to sleep, never returns
+// void go_to_sleep(void);
 
 // ------------------------------------------------------------
 // SCU
@@ -40,13 +40,13 @@ void enable_scu(void);
 void join_smp(void);
 
 // Set this core as NOT participating in SMP
-void leave_smp(void);
+// void leave_smp(void);
 
 // The return value is 1 bit per core:
 // bit 0 - CPU 0
 // bit 1 - CPU 1
 // etc...
-unsigned int get_cpus_in_smp(void);
+// unsigned int get_cpus_in_smp(void);
 
  //Enable the broadcasting of cache & TLB maintenance operations
 // When enabled AND in SMP, broadcast all "inner sharable"
@@ -54,7 +54,7 @@ unsigned int get_cpus_in_smp(void);
 void enable_maintenance_broadcast(void);
 
 // Disable the broadcasting of cache & TLB maintenance operations
-void disable_maintenance_broadcast(void);
+// void disable_maintenance_broadcast(void);
 
 // cpu: 0x0=CPU 0 0x1=CPU 1 etc...
 // This function invalidates the SCU copy of the tag rams

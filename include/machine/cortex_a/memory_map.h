@@ -34,17 +34,6 @@ struct Memory_Map
     };
 };
 
-/*
-template <>
-struct IO_Map<Cortex_M>
-{
-    enum {
-        ITC_BASE                = 0x80020000,
-        ITC_NIPEND              = ITC_BASE + 0x38,
-    };
-};
-*/
-
 __END_SYS
 
 #endif
