@@ -26,7 +26,7 @@ const int nTasks = sizeof(criterions)/sizeof(int); // number of threads to be cr
 Thread * volatile task[nTasks];
 const int first_burst = 3; // number of threads to be created at beginning
 const int shift_ticks = (sizeof(int)-1)*8 -1; // shift on number of execution ticks per criterion (take less time and space on gantt)
-const int creation_interval = (Thread::Criterion::HIGH >> (shift_ticks+1)) +1; // interval between threads creation
+const int creation_interval = (Thread::Criterion::HIGH >> (shift_ticks+1)) +2-Traits<Build>::CPUS; // interval between threads creation
 
 Spin table;
 OStream cout;
