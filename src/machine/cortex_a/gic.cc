@@ -23,9 +23,17 @@ extern "C" {
     // enable_GIC()                      <-- Enable the GIC (global)
     // enable_gic_processor_interface()  <-- Enable the CPU interface (local to the CPU)
 
+// ------------------------------------------------------------
+unsigned int *get_base_addr(void){
+    unsigned int *periphbase;    // address periphbase
+
+    __asm("MRC p15, 4, %0, c15, c0, 0" : "=r"(periphbase) : );  // Read periph base address
+
+    return periphbase;
+}
 
     /* EXPORT  enable_GIC */
-__attribute__((naked)) void enable_GIC(void) {
+__attribute__((naked)) void enable_GIC_asm(void) {
     // Global enable of the Interrupt Distributor
 /* enable_GIC PROC */
 
@@ -40,10 +48,18 @@ __attribute__((naked)) void enable_GIC(void) {
     __asm("BX      lr");
     /* ENDP */
 }
+
+void enable_GIC(void){
+    unsigned int *periphbase = get_base_addr();
+    unsigned int *interrupt_dist_addr;
+
+    interrupt_dist_addr = *periphbase | (unsigned int)0x1000;
+    *interrupt_dist_addr = *interrupt_dist_addr | 0x01;
+}
 // ------------------------------------------------------------
 
     /* EXPORT disable_GIC */
-    __attribute__((naked)) void disable_GIC(void) {
+    __attribute__((naked)) void disable_GIC_asm(void) {
     // Global disable of the Interrupt Distributor
 /* disable_GIC PROC */
 
@@ -58,10 +74,18 @@ __attribute__((naked)) void enable_GIC(void) {
     __asm("BX      lr");
     /* ENDP */
 }
+
+void disable_GIC(void){
+    unsigned int *periphbase = get_base_addr();
+    unsigned int *interrupt_dist_addr;
+
+    interrupt_dist_addr = *periphbase | (unsigned int)0x1000;
+    *interrupt_dist_addr = *interrupt_dist_addr & ~(0x01);
+}
 // ------------------------------------------------------------
 
     /* EXPORT  enable_irq_id */
-    __attribute__((naked)) void enable_irq_id(unsigned int ID){
+    __attribute__((naked)) void enable_irq_id_asm(unsigned int ID){
     // Enables the interrupt source number ID
 /* enable_irq_id PROC */
 
@@ -88,10 +112,25 @@ __attribute__((naked)) void enable_GIC(void) {
     __asm("BX      lr");
     /* ENDP */
 }
+
+void enable_irq_id(unsigned int ID){
+    unsigned int *periphbase = get_base_addr();
+    unsigned int *icdiser_addr;
+    unsigned int addr_offset;
+    unsigned int id_offset_mask;
+    unsigned int id_position;
+
+    addr_offset = (ID/32) * 4;
+    addr_offset = addr_offset + 0x1100;
+    id_offset_mask = ID & 0x1F;
+    id_position = 1 << id_offset_mask;
+    icdiser_addr = periphbase | addr_offset;
+    *icdiser_addr = id_position;
+}
 // ------------------------------------------------------------
     
     /* EXPORT  disable_irq_id */
-    __attribute__((naked)) void disable_irq_id(unsigned int ID){
+    __attribute__((naked)) void disable_irq_id_asm(unsigned int ID){
     // Disables the interrupt source number ID
 /* disable_irq_id PROC */
 
@@ -116,10 +155,25 @@ __attribute__((naked)) void enable_GIC(void) {
     __asm("BX      lr");
     /* ENDP */
 }
+
+void disable_irq_id(unsigned int ID){
+    unsigned int *periphbase = get_base_addr();
+    unsigned int *icdiser_addr;
+    unsigned int addr_offset;
+    unsigned int id_offset_mask;
+    unsigned int id_position;
+
+    addr_offset = (ID/32) * 4;
+    addr_offset = addr_offset + 0x1180;
+    id_offset_mask = ID & 0x1F;
+    id_position = 1 << id_offset_mask;
+    icdiser_addr = periphbase | addr_offset;
+    *icdiser_addr = id_position;
+}
 // ------------------------------------------------------------
 
     /* EXPORT set_irq_priority */
-    __attribute__((naked)) void set_irq_priority(unsigned int ID, unsigned int priority){
+    __attribute__((naked)) void set_irq_priority_asm(unsigned int ID, unsigned int priority){
     // Sets the priority of the specifed ID
     // r0 = ID
     // r1 = priority
@@ -161,6 +215,7 @@ __attribute__((naked)) void enable_GIC(void) {
     __asm("BX      lr");
     /* ENDP */
 }
+
 // ------------------------------------------------------------
 
     /* EXPORT enable_gic_processor_interface */
