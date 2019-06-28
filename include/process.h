@@ -107,6 +107,8 @@ protected:
     void constructor_prologue(unsigned int stack_size);
     void constructor_epilogue(const Log_Addr & entry, unsigned int stack_size);
 
+    void state(State newState);
+
     Criterion & criterion() { return const_cast<Criterion &>(_link.rank()); }
     Queue::Element * link() { return &_link; }
 

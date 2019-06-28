@@ -170,7 +170,7 @@ void Thread::suspend(bool locked)
 
     Thread * prev = running();
 
-    _state = SUSPENDED;
+    state(SUSPENDED);
     _scheduler.suspend(this);
 
     Thread * next = running();
@@ -186,7 +186,7 @@ void Thread::resume()
     db<Thread>(TRC) << "Thread::resume(this=" << this << ")" << endl;
 
     if(_state == SUSPENDED) {
-        _state = READY;
+        state(READY);
         _scheduler.resume(this);
 
         if(preemptive)
@@ -223,13 +223,13 @@ void Thread::exit(int status)
 
     Thread * prev = running();
     _scheduler.remove(prev);
-    prev->_state = FINISHING;
+    prev->state(FINISHING);
     *reinterpret_cast<int *>(prev->_stack) = status;
 
     _thread_count--;
 
     if(prev->_joining) {
-        prev->_joining->_state = READY;
+        prev->_joining->state(READY);
         _scheduler.resume(prev->_joining);
         prev->_joining = 0;
     }
@@ -247,7 +247,7 @@ void Thread::sleep(Queue * q)
 
     Thread * prev = running();
     _scheduler.suspend(prev);
-    prev->_state = WAITING;
+    prev->state(WAITING);
     prev->_waiting = q;
     q->insert(&prev->_link);
 
@@ -264,7 +264,7 @@ void Thread::wakeup(Queue * q)
 
     if(!q->empty()) {
         Thread * t = q->remove()->object();
-        t->_state = READY;
+        t->state(READY);
         t->_waiting = 0;
         _scheduler.resume(t);
 
@@ -289,7 +289,7 @@ void Thread::wakeup_all(Queue * q)
         unsigned int cpus = 0;
         while(!q->empty()) {
             Thread * t = q->remove()->object();
-            t->_state = READY;
+            t->state(READY);
             t->_waiting = 0;
             _scheduler.resume(t);
             cpus |= 1 << t->_link.rank().queue();
@@ -357,8 +357,8 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
 
     if(prev != next) {
         if(prev->_state == RUNNING)
-            prev->_state = READY;
-        next->_state = RUNNING;
+            prev->state(READY);
+        next->state(RUNNING);
 
         db<Thread>(TRC) << "Thread::dispatch(prev=" << prev << ",next=" << next << ")" << endl;
         db<Thread>(INF) << "prev={" << prev << ",ctx=" << *prev->_context << "}" << endl;
@@ -412,6 +412,26 @@ int Thread::idle()
     for(;;);
     
     return 0;
+}
+
+void Thread::state(State newState) {
+    switch (this->_state) {
+    case RUNNING:
+        this->calc_cpu_elapse_time();
+        break;
+    case READY:
+        this->calc_ready_elapse_time();
+        break;
+    case SUSPENDED:
+    case WAITING:
+        this->calc_suspend_elapse_time();
+        break;
+    default:
+        assert(false);
+        break;
+    }
+    this->_state = newState;
+    this->set_state_time_identifier(Alarm::elapsed());
 }
 
 unsigned int Thread::get_state_time_identifier()
