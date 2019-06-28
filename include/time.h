@@ -37,6 +37,7 @@ class Alarm
     friend class Alarm_Chronometer;             // for elapsed()
     friend class Scheduling_Criteria::FCFS;     // for ticks() and elapsed()
     friend class Scheduling_Criteria::HRRN;     // for ticks() and elapsed()
+    friend class Thread;                        // for elapsed()
 
 private:
     typedef Timer::Tick Tick;

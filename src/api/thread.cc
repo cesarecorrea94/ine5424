@@ -16,6 +16,8 @@ volatile unsigned int Thread::_thread_count;
 Scheduler_Timer * Thread::_timer;
 Scheduler<Thread> Thread::_scheduler;
 Spin Thread::_lock;
+volatile double Thread::Thread_stats::_mean_time_on_ready_state[Q];
+volatile Thread::Bound_stats Thread::Thread_stats::_queue_stats[Q];
 
 // Methods
 void Thread::constructor_prologue(unsigned int stack_size)
@@ -170,7 +172,7 @@ void Thread::suspend(bool locked)
 
     Thread * prev = running();
 
-    _state = SUSPENDED;
+    state(SUSPENDED);
     _scheduler.suspend(this);
 
     Thread * next = running();
@@ -186,7 +188,7 @@ void Thread::resume()
     db<Thread>(TRC) << "Thread::resume(this=" << this << ")" << endl;
 
     if(_state == SUSPENDED) {
-        _state = READY;
+        state(READY);
         _scheduler.resume(this);
 
         if(preemptive)
@@ -223,13 +225,13 @@ void Thread::exit(int status)
 
     Thread * prev = running();
     _scheduler.remove(prev);
-    prev->_state = FINISHING;
+    prev->state(FINISHING);
     *reinterpret_cast<int *>(prev->_stack) = status;
 
     _thread_count--;
 
     if(prev->_joining) {
-        prev->_joining->_state = READY;
+        prev->_joining->state(READY);
         _scheduler.resume(prev->_joining);
         prev->_joining = 0;
     }
@@ -247,7 +249,7 @@ void Thread::sleep(Queue * q)
 
     Thread * prev = running();
     _scheduler.suspend(prev);
-    prev->_state = WAITING;
+    prev->state(WAITING);
     prev->_waiting = q;
     q->insert(&prev->_link);
 
@@ -264,7 +266,7 @@ void Thread::wakeup(Queue * q)
 
     if(!q->empty()) {
         Thread * t = q->remove()->object();
-        t->_state = READY;
+        t->state(READY);
         t->_waiting = 0;
         _scheduler.resume(t);
 
@@ -289,7 +291,7 @@ void Thread::wakeup_all(Queue * q)
         unsigned int cpus = 0;
         while(!q->empty()) {
             Thread * t = q->remove()->object();
-            t->_state = READY;
+            t->state(READY);
             t->_waiting = 0;
             _scheduler.resume(t);
             cpus |= 1 << t->_link.rank().queue();
@@ -357,8 +359,8 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
 
     if(prev != next) {
         if(prev->_state == RUNNING)
-            prev->_state = READY;
-        next->_state = RUNNING;
+            prev->state(READY);
+        next->state(RUNNING);
 
         db<Thread>(TRC) << "Thread::dispatch(prev=" << prev << ",next=" << next << ")" << endl;
         db<Thread>(INF) << "prev={" << prev << ",ctx=" << *prev->_context << "}" << endl;
@@ -413,6 +415,36 @@ int Thread::idle()
     
     return 0;
 }
+
+void Thread::state(State newState) {
+    if(Thread_stats::Q > 1) {
+        Tick elapsed = _migration_stats.elapsed_time_reference();
+        Thread * enqueue;
+        switch (this->_state) {
+        case READY:
+            _migration_stats.upd_mean_time_on_ready_state(elapsed);
+            break;
+        case RUNNING:
+            _migration_stats.inc_elapsed_time_on(Bound_stats::_CPU, elapsed);
+            enqueue = _scheduler.remove(this);
+            _migration_stats.check_migration(this);
+            if(enqueue) _scheduler.insert(this);
+            break;
+        case SUSPENDED:
+        case WAITING:
+            _migration_stats.inc_elapsed_time_on(Bound_stats::_IO, elapsed);
+            break;
+        default:
+            assert(false);
+            break;
+        }
+        if(newState == FINISHING)
+            _migration_stats.finish();
+    }
+    this->_state = newState;
+}
+
+Thread::Tick Thread::Alarm_elapsed() { return Alarm::elapsed(); }
 
 __END_SYS
 

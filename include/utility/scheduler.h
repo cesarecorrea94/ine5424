@@ -47,6 +47,9 @@ namespace Scheduling_Criteria
         unsigned int queue() const { return 0; }
 
     protected:
+        void queue(const unsigned int new_queue) volatile {}
+
+    protected:
         volatile int _priority;
     };
 
@@ -113,6 +116,8 @@ namespace Scheduling_Criteria
     {
     protected:
         Variable_Queue(unsigned int queue): _queue(queue) {};
+
+        void queue(const unsigned int new_queue) volatile { _queue = new_queue; }
 
     public:
         const volatile unsigned int & queue() const volatile { return _queue; }
