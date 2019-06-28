@@ -175,6 +175,11 @@ void Thread::suspend(bool locked)
 
     Thread * next = running();
 
+    prev->set_state_time_identifier(Alarm::elapsed());//cpu out
+    next->set_state_time_identifier(Alarm::elapsed());//cpu in
+    prev->calc_ready_elapse_time();
+    next->calc_cpu_elapse_time();
+
     dispatch(prev, next);
 }
 
@@ -188,6 +193,9 @@ void Thread::resume()
     if(_state == SUSPENDED) {
         _state = READY;
         _scheduler.resume(this);
+
+        this->set_state_time_identifier(Alarm::elapsed());//ready in
+        this->calc_suspend_elapse_time();
 
         if(preemptive)
             reschedule(_link.rank().queue());
