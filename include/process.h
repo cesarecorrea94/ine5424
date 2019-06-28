@@ -8,6 +8,7 @@
 #include <utility/handler.h>
 #include <utility/scheduler.h>
 #include <machine/timer.h>
+#include <time.h>
 
 extern "C" { void __exit(); }
 
@@ -86,6 +87,17 @@ public:
     void pass();
     void suspend() { suspend(false); }
     void resume();
+    unsigned int get_state_time_identifier();
+    void set_state_time_identifier(unsigned int val);
+    void calc_ready_elapse_time();
+    void calc_cpu_elapse_time();
+    void calc_suspend_elapse_time();
+    void set_ready_elapse_time(unsigned int val);
+    void set_cpu_elapse_time(unsigned int val);
+    void set_suspend_elapse_time(unsigned int val);
+    unsigned int get_ready_elapse_time();
+    unsigned int get_cpu_elapse_time();
+    unsigned int get_suspend_elapse_time();
 
     static Thread * volatile self() { return running(); }
     static void yield();
@@ -139,6 +151,10 @@ protected:
     Queue * _waiting;
     Thread * volatile _joining;
     Queue::Element _link;
+    unsigned int _state_time_identifier;
+    unsigned int _elapsed_cpu_time;
+    unsigned int _elapsed_ready_time;    
+    unsigned int _elapsed_suspend_time;
 
     static volatile unsigned int _thread_count;
     static Scheduler_Timer * _timer;
@@ -146,10 +162,10 @@ protected:
     static Spin _lock;
 };
 
-
 template<typename ... Tn>
 inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
-: _state(READY), _waiting(0), _joining(0), _link(this, NORMAL)
+:   _state(READY), _waiting(0), _joining(0), _link(this, NORMAL),
+    _state_time_identifier(Alarm::elapsed()), _elapsed_cpu_time(0), _elapsed_ready_time(0), _elapsed_suspend_time(0)
 {
     constructor_prologue(STACK_SIZE);
     _context = CPU::init_stack(0, _stack + STACK_SIZE, &__exit, entry, an ...);
@@ -158,7 +174,8 @@ inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
 
 template<typename ... Tn>
 inline Thread::Thread(const Configuration & conf, int (* entry)(Tn ...), Tn ... an)
-: _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion)
+:   _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion),
+    _state_time_identifier(Alarm::elapsed()), _elapsed_cpu_time(0), _elapsed_ready_time(0), _elapsed_suspend_time(0)
 {
     constructor_prologue(conf.stack_size);
     _context = CPU::init_stack(0, _stack + conf.stack_size, &__exit, entry, an ...);

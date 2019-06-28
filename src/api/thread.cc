@@ -414,6 +414,63 @@ int Thread::idle()
     return 0;
 }
 
+unsigned int Thread::get_state_time_identifier()
+{
+    return _state_time_identifier;
+}
+
+void Thread::set_state_time_identifier(unsigned int val)
+{
+    _state_time_identifier = val;
+}
+
+void Thread::calc_ready_elapse_time()
+{ 
+    unsigned int calc = (get_ready_elapse_time() + (Alarm::elapsed() - get_state_time_identifier())) / 2; 
+    set_ready_elapse_time(calc);
+}
+
+void Thread::calc_cpu_elapse_time()
+{
+    unsigned int calc = (get_cpu_elapse_time() + (Alarm::elapsed() - get_state_time_identifier())) / 2; 
+    set_cpu_elapse_time(calc);
+}
+
+void Thread::calc_suspend_elapse_time()
+{
+    unsigned int calc = (get_suspend_elapse_time() + (Alarm::elapsed() - get_state_time_identifier())) / 2; 
+    set_suspend_elapse_time(calc);
+}
+
+void Thread::set_ready_elapse_time(unsigned int val)
+{
+    _elapsed_ready_time = val;
+}
+void Thread::set_cpu_elapse_time(unsigned int val)
+{
+    _elapsed_cpu_time = val;
+}
+
+void Thread::set_suspend_elapse_time(unsigned int val)
+{
+    _elapsed_suspend_time = val;
+}
+
+unsigned int Thread::get_ready_elapse_time()
+{
+    return _elapsed_ready_time;
+}
+
+unsigned int Thread::get_cpu_elapse_time()
+{
+    return _elapsed_cpu_time;
+}
+
+unsigned int Thread::get_suspend_elapse_time()
+{
+    return _elapsed_suspend_time;
+}
+
 __END_SYS
 
 // Id forwarder to the spin lock
