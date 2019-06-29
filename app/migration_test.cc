@@ -17,20 +17,52 @@ MyLock unique;
 const int THREADS = 16;
 Thread * task[THREADS];
 
-void io_bound(){
+int composed_io_cpu_bound()
+{
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] Perform IO bound!" << endl;
+	cout << "CPU[" << Machine::cpu_id() << "] Perform MORE IO!" << endl;
 	unique.unlock();
 
-	Delay io_call(5000000);
+	Delay io_call1(4000000); // thread release cpu???
+	CPU::halt();
+	Delay io_call2(6000000);
+
+	return 0;
 }
 
-void cpu_bound(){
+int composed_cpu_io_bound()
+{
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] Perform CPU bound!" << endl;
+	cout << "CPU[" << Machine::cpu_id() << "] Perform MORE CPU!" << endl;
 	unique.unlock();
 
 	CPU::halt();
+	Delay io_call(1000000);
+	CPU::halt();
+
+	return 0;
+}
+
+int io_bound()
+{
+	unique.lock();
+	cout << "CPU[" << Machine::cpu_id() << "] Perform ONLY IO!" << endl;
+	unique.unlock();
+
+	Delay io_call(7000000);
+
+	return 0;
+}
+
+int cpu_bound()
+{
+	unique.lock();
+	cout << "CPU[" << Machine::cpu_id() << "] Perform ONLY CPU!" << endl;
+	unique.unlock();
+
+	CPU::halt();
+
+	return 0;
 }
 
 int main()
@@ -41,12 +73,21 @@ int main()
 	for (int tid = 0; tid < THREADS; tid++)
 	{
 		if((tid % 2) == 0){
-			task[tid] = new Thread(&io_bound);
+			if(tid % 3 == 0){
+				task[tid] = new Thread(&composed_cpu_io_bound);
+			}
+			else{
+				task[tid] = new Thread(&io_bound);
+			}			
 		}
 		else{
-			task[tid] = new Thread(&cpu_bound);
-		}
-		
+			if(tid % 3 == 0){
+				task[tid] = new Thread(&composed_io_cpu_bound);
+			}
+			else{
+				task[tid] = new Thread(&cpu_bound);
+			}
+		}		
 	}
 
 	for (int tid = 0; tid < THREADS; tid++)
