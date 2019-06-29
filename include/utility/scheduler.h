@@ -111,8 +111,10 @@ namespace Scheduling_Criteria
     // Multicore Algorithms
     class Variable_Queue
     {
+        friend Scheduling_Multilist;
     protected:
         Variable_Queue(unsigned int queue): _queue(queue) {};
+        void queue(unsigned int new_queue) volatile { _queue = new_queue; }
 
     public:
         const volatile unsigned int & queue() const volatile { return _queue; }

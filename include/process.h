@@ -87,17 +87,6 @@ public:
     void pass();
     void suspend() { suspend(false); }
     void resume();
-    unsigned int get_state_time_identifier();
-    void set_state_time_identifier(unsigned int val);
-    void calc_ready_elapse_time();
-    void calc_cpu_elapse_time();
-    void calc_suspend_elapse_time();
-    void set_ready_elapse_time(unsigned int val);
-    void set_cpu_elapse_time(unsigned int val);
-    void set_suspend_elapse_time(unsigned int val);
-    unsigned int get_ready_elapse_time();
-    unsigned int get_cpu_elapse_time();
-    unsigned int get_suspend_elapse_time();
 
     static Thread * volatile self() { return running(); }
     static void yield();
@@ -153,10 +142,6 @@ protected:
     Queue * _waiting;
     Thread * volatile _joining;
     Queue::Element _link;
-    unsigned int _state_time_identifier;
-    unsigned int _elapsed_cpu_time;
-    unsigned int _elapsed_ready_time;    
-    unsigned int _elapsed_suspend_time;
 
     static volatile unsigned int _thread_count;
     static Scheduler_Timer * _timer;

@@ -1289,8 +1289,37 @@ public:
         return _list[e->rank().queue()].choose(e);
     }
 
+    void check_migration() {
+        unsigned max_index = 0;
+        for(unsigned i = 1; i < Q; ++i) {
+            if(_mean_time_on_ready_state[i]
+            >  _mean_time_on_ready_state[max_index])
+                max_index = i;
+        }
+        if(_mean_time_on_ready_state[R::current_queue()] *3/2
+        >  _mean_time_on_ready_state[max_index]) {
+            return;
+        }
+        Element * e = remove(_list[max_index].tail());
+        e->rank().queue(R::current_queue());
+        insert(e);
+        _queue_stats[max_index] -= *e;
+        _queue_stats[R::current_queue()] += *e;
+        // _queue_stats[R::current_queue()].CPU_bound() / _queue_stats[max_index].CPU_bound()
+        // for(Element *head = _list[cpu].head(); head != 0; head = head->next()) {
+        // }
+    }
+
+    void upd_mean_time_on_ready_state(Tick val) {
+        _mean_time_on_ready_state[R::current_queue()]
+        = (_mean_time_on_ready_state[R::current_queue()]*size() + val) / (size()+1);
+    }
+
+
 private:
     L _list[Q];
+    Migration_stats _queue_stats[Q];
+    Tick _mean_time_on_ready_state[Q];
 };
 
 // Doubly-Linked, Multihead Scheduling Multilist

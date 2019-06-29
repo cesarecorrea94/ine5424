@@ -364,9 +364,11 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
         db<Thread>(INF) << "prev={" << prev << ",ctx=" << *prev->_context << "}" << endl;
         db<Thread>(INF) << "next={" << next << ",ctx=" << *next->_context << "}" << endl;
 
-        if(smp)
+        if(smp) {
+            //if _scheduler is Multilist
+                _scheduler.check_migration();
             _lock.release();
-
+        }
         // The non-volatile pointer to volatile pointer to a non-volatile context is correct
         // and necessary because of context switches, but here, we are locked() and
         // passing the volatile to switch_constext forces it to push prev onto the stack,
@@ -415,80 +417,26 @@ int Thread::idle()
 }
 
 void Thread::state(State newState) {
+    Tick elapsed = this->update_time_reference();
     switch (this->_state) {
-    case RUNNING:
-        this->calc_cpu_elapse_time();
-        break;
     case READY:
-        this->calc_ready_elapse_time();
+        // tempo de espera é dependente da fila, não algo característico da thread
+        _scheduler.upd_mean_time_on(READY, elapsed);
+        break;
+    case RUNNING:
+        this->inc_elapsed_time_on(CPU, elapsed);
+        _scheduler.inc_elapsed_time_on(CPU, elapsed);
         break;
     case SUSPENDED:
     case WAITING:
-        this->calc_suspend_elapse_time();
+        this->inc_elapsed_time_on(IO, elapsed);
+        _scheduler.inc_elapsed_time_on(IO, elapsed);
         break;
     default:
         assert(false);
         break;
     }
     this->_state = newState;
-    this->set_state_time_identifier(Alarm::elapsed());
-}
-
-unsigned int Thread::get_state_time_identifier()
-{
-    return _state_time_identifier;
-}
-
-void Thread::set_state_time_identifier(unsigned int val)
-{
-    _state_time_identifier = val;
-}
-
-void Thread::calc_ready_elapse_time()
-{ 
-    unsigned int calc = (get_ready_elapse_time() + (Alarm::elapsed() - get_state_time_identifier())) / 2; 
-    set_ready_elapse_time(calc);
-}
-
-void Thread::calc_cpu_elapse_time()
-{
-    unsigned int calc = (get_cpu_elapse_time() + (Alarm::elapsed() - get_state_time_identifier())) / 2; 
-    set_cpu_elapse_time(calc);
-}
-
-void Thread::calc_suspend_elapse_time()
-{
-    unsigned int calc = (get_suspend_elapse_time() + (Alarm::elapsed() - get_state_time_identifier())) / 2; 
-    set_suspend_elapse_time(calc);
-}
-
-void Thread::set_ready_elapse_time(unsigned int val)
-{
-    _elapsed_ready_time = val;
-}
-void Thread::set_cpu_elapse_time(unsigned int val)
-{
-    _elapsed_cpu_time = val;
-}
-
-void Thread::set_suspend_elapse_time(unsigned int val)
-{
-    _elapsed_suspend_time = val;
-}
-
-unsigned int Thread::get_ready_elapse_time()
-{
-    return _elapsed_ready_time;
-}
-
-unsigned int Thread::get_cpu_elapse_time()
-{
-    return _elapsed_cpu_time;
-}
-
-unsigned int Thread::get_suspend_elapse_time()
-{
-    return _elapsed_suspend_time;
 }
 
 __END_SYS
