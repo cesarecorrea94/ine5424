@@ -364,11 +364,8 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
         db<Thread>(INF) << "prev={" << prev << ",ctx=" << *prev->_context << "}" << endl;
         db<Thread>(INF) << "next={" << next << ",ctx=" << *next->_context << "}" << endl;
 
-        if(smp) {
-            //if _scheduler is Multilist
-                _scheduler.check_migration();
+        if(smp)
             _lock.release();
-        }
         // The non-volatile pointer to volatile pointer to a non-volatile context is correct
         // and necessary because of context switches, but here, we are locked() and
         // passing the volatile to switch_constext forces it to push prev onto the stack,
@@ -417,25 +414,25 @@ int Thread::idle()
 }
 
 void Thread::state(State newState) {
-    Tick elapsed = this->update_time_reference();
-    switch (this->_state) {
-    case READY:
-        // tempo de espera é dependente da fila, não algo característico da thread
-        _scheduler.upd_mean_time_on(READY, elapsed);
-        break;
-    case RUNNING:
-        this->inc_elapsed_time_on(CPU, elapsed);
-        _scheduler.inc_elapsed_time_on(CPU, elapsed);
-        break;
-    case SUSPENDED:
-    case WAITING:
-        this->inc_elapsed_time_on(IO, elapsed);
-        _scheduler.inc_elapsed_time_on(IO, elapsed);
-        break;
-    default:
-        assert(false);
-        break;
-    }
+    // Tick elapsed = this->update_time_reference();
+    // switch (this->_state) {
+    // case READY:
+    //     _migration_stats.upd_mean_time_on_ready_state(elapsed);
+    //     break;
+    // case RUNNING:
+    //     _migration_stats.inc_elapsed_time_on(_CPU, elapsed);
+    //     Thread * self = _scheduler.remove(this);
+    //     _migration_stats.check_migration(this);
+    //     if(self) _scheduler.insert(self);
+    //     break;
+    // case SUSPENDED:
+    // case WAITING:
+    //     _migration_stats.inc_elapsed_time_on(_IO, elapsed);
+    //     break;
+    // default:
+    //     assert(false);
+    //     break;
+    // }
     this->_state = newState;
 }
 

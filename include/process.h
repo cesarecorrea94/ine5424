@@ -71,6 +71,90 @@ public:
     // Thread Queue
     typedef Ordered_Queue<Thread, Criterion, Scheduler<Thread>::Element> Queue;
 
+    // static unsigned Alarm_elapsed() { return 0; }
+    // // Migration
+    // struct Bound_stats {
+    //     typedef unsigned Tick;
+    //     enum Bound { _CPU, _IO };
+    // public:
+    //     Bound_stats(): _elapsed_time_on{1,1} {}
+    //     ~Bound_stats() {}
+        
+    //     void inc_elapsed_time_on(Bound bnd, Tick val) {
+    //         _elapsed_time_on[bnd] += val;
+    //     }
+    //     double CPU_bound() { 
+    //         return _elapsed_time_on[_CPU] / (_elapsed_time_on[_CPU] + _elapsed_time_on[_IO]);
+    //     }
+    
+    // /* protected: */
+    //     void operator-=(const Bound_stats &other) {
+    //         _elapsed_time_on[_CPU] -= other._elapsed_time_on[_CPU];
+    //         _elapsed_time_on[_IO]  -= other._elapsed_time_on[_IO];
+    //     }
+    //     void operator+=(const Bound_stats &other) {
+    //         _elapsed_time_on[_CPU] += other._elapsed_time_on[_CPU];
+    //         _elapsed_time_on[_IO]  += other._elapsed_time_on[_IO];
+    //     }
+
+    // private:
+    //     Tick _elapsed_time_on[2];
+    // };
+
+    // struct Thread_stats: Bound_stats {
+    //     static const unsigned int Q = Criterion::QUEUES;
+    //     using Bound_stats::Tick;
+    // public:
+    //     Thread_stats(): _time_reference(Alarm_elapsed()) {}
+    //     ~Thread_stats() {}
+        
+    //     void inc_elapsed_time_on(Bound bnd, Tick val) {
+    //         Bound_stats::inc_elapsed_time_on(bnd, val);
+    //         queue_stats().inc_elapsed_time_on(bnd, val);
+    //     }
+    //     Tick update_time_reference() {
+    //         Tick elapsed = Alarm_elapsed() - _time_reference;
+    //         _time_reference = Alarm_elapsed();
+    //         return elapsed;
+    //     }
+
+    //     static Bound_stats & queue_stats(unsigned cpu=0/*  = Criterion::current_queue() */) {
+    //         return _queue_stats[cpu];
+    //     }
+    //     static void upd_mean_time_on_ready_state(Tick val) {
+    //         auto size = _scheduler.schedulables();
+    //         Tick &mean_time = _mean_time_on_ready_state[0/* Criterion::current_queue() */];
+    //         mean_time = (mean_time*size + val) / (size+1);
+    //     }
+    //     static void check_migration(Thread * self) {
+    //         unsigned min_index = 0;
+    //         for(unsigned i = 1; i < Q; ++i)
+    //             if(_mean_time_on_ready_state[i] < _mean_time_on_ready_state[min_index]) {
+    //                 min_index = i;
+    //             }
+    //         if(// se a minha fila está tão cheia quanto a para qual quero migrar, e
+    //             _mean_time_on_ready_state[0/* Criterion::current_queue() */] > _mean_time_on_ready_state[min_index] *3/2
+    //         && !(// se a fila para a qual quero migrar é CPU-Bound (tanto quanto a minha)
+    //                (queue_stats().CPU_bound() < queue_stats(min_index).CPU_bound())
+    //             // e a thread que quero migrar é IO-Bound (ou vice-versa)
+    //             ^  (queue_stats().CPU_bound() > self->_migration_stats.CPU_bound()) )
+    //         ) {
+    //             self->criterion().queue(Criterion::current_queue());
+    //             queue_stats(min_index)  -= self->_migration_stats;
+    //             queue_stats()           += self->_migration_stats;
+    //         }
+    //     }
+
+    // private:
+    //     Tick _time_reference;
+        
+    //     // tempo de espera é dependente da fila, não algo característico da thread
+    //     static Tick _mean_time_on_ready_state[Q];
+    //     static Bound_stats _queue_stats[Q];
+    // };
+    // friend class Thread_stats;
+    // friend class Bound_stats;
+
 public:
     template<typename ... Tn>
     Thread(int (* entry)(Tn ...), Tn ... an);
@@ -142,6 +226,7 @@ protected:
     Queue * _waiting;
     Thread * volatile _joining;
     Queue::Element _link;
+    // Thread_stats _migration_stats;
 
     static volatile unsigned int _thread_count;
     static Scheduler_Timer * _timer;
@@ -151,8 +236,7 @@ protected:
 
 template<typename ... Tn>
 inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
-:   _state(READY), _waiting(0), _joining(0), _link(this, NORMAL),
-    _state_time_identifier(Alarm::elapsed()), _elapsed_cpu_time(0), _elapsed_ready_time(0), _elapsed_suspend_time(0)
+:   _state(READY), _waiting(0), _joining(0), _link(this, NORMAL)
 {
     constructor_prologue(STACK_SIZE);
     _context = CPU::init_stack(0, _stack + STACK_SIZE, &__exit, entry, an ...);
@@ -161,8 +245,7 @@ inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
 
 template<typename ... Tn>
 inline Thread::Thread(const Configuration & conf, int (* entry)(Tn ...), Tn ... an)
-:   _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion),
-    _state_time_identifier(Alarm::elapsed()), _elapsed_cpu_time(0), _elapsed_ready_time(0), _elapsed_suspend_time(0)
+:   _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion)
 {
     constructor_prologue(conf.stack_size);
     _context = CPU::init_stack(0, _stack + conf.stack_size, &__exit, entry, an ...);
