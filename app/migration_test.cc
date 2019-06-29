@@ -12,55 +12,84 @@ struct MyLock: Spin
     void unlock() { Spin::release(); }
 };
 
+const int THREADS = 16;
+int heavy_io_start = 0;
+int light_io_start = 0;
+int heavy_io_end = 0;
+int light_io_end = 0;
 OStream cout;
 MyLock unique;
-const int THREADS = 16;
 Thread * task[THREADS];
 
-int composed_io_cpu_bound()
+int calc (int iterations) {
+	int aux = 0;
+	for (int i = 0; i < iterations; ++i)
+	{
+		for (int i = 0; i < iterations; ++i)
+		{
+			aux++;
+		}
+	}
+
+	return aux;
+}
+
+int heterogeneous_io_bound()
 {
 	unique.lock();
 	cout << "CPU[" << Machine::cpu_id() << "] Perform MORE IO!" << endl;
 	unique.unlock();
 
-	Delay io_call1(4000000); // thread release cpu???
-	CPU::halt();
-	Delay io_call2(6000000);
+	calc(100);
+	Delay io_call1(4000000); // thread release cpu
+	calc(1000);
+	Delay io_call2(6000000); // thread release cpu
+	calc(100);
 
 	return 0;
 }
 
-int composed_cpu_io_bound()
+int heterogeneous_cpu_bound()
 {
 	unique.lock();
 	cout << "CPU[" << Machine::cpu_id() << "] Perform MORE CPU!" << endl;
 	unique.unlock();
 
-	CPU::halt();
-	Delay io_call(1000000);
-	CPU::halt();
+	calc(1000);
+	Delay io_call(1000000); // thread release cpu
+	calc(1000);
 
 	return 0;
 }
 
-int io_bound()
+int homogeneus_io_bound(int io_time)
 {
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] Perform ONLY IO!" << endl;
+	cout << "CPU[" << Machine::cpu_id() << "] START Homogeneus IO exec >> " << heavy_io_start << " <<" << endl;
+	heavy_io_start++;
 	unique.unlock();
 
-	Delay io_call(7000000);
+	Delay io_call(io_time); // thread release cpu
+
+	unique.lock();
+	cout << "CPU[" << Machine::cpu_id() << "] END Homogeneus IO exec >> " << heavy_io_end << " <<" << endl;
+	heavy_io_end++;
+	unique.unlock();
 
 	return 0;
 }
 
-int cpu_bound()
+int homogeneus_cpu_bound(int iterations)
 {
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] Perform ONLY CPU!" << endl;
+	cout << "CPU[" << Machine::cpu_id() << "] START Homogeneus CPU performance!" << endl;
 	unique.unlock();
 
-	CPU::halt();
+	calc(iterations);
+
+	unique.lock();
+	cout << "CPU[" << Machine::cpu_id() << "] END Homogeneus Heavy CPU performance!" << endl;
+	unique.unlock();
 
 	return 0;
 }
@@ -74,18 +103,18 @@ int main()
 	{
 		if((tid % 2) == 0){
 			if(tid % 3 == 0){
-				task[tid] = new Thread(&composed_cpu_io_bound);
+				task[tid] = new Thread(&heterogeneous_cpu_bound);
 			}
 			else{
-				task[tid] = new Thread(&io_bound);
+				task[tid] = new Thread(&homogeneus_io_bound, 1000000);
 			}			
 		}
 		else{
 			if(tid % 3 == 0){
-				task[tid] = new Thread(&composed_io_cpu_bound);
+				task[tid] = new Thread(&heterogeneous_io_bound);
 			}
 			else{
-				task[tid] = new Thread(&cpu_bound);
+				task[tid] = new Thread(&homogeneus_cpu_bound, 10000);
 			}
 		}		
 	}
