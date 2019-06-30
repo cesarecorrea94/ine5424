@@ -34,61 +34,92 @@ int calc (int iterations) {
 	return aux;
 }
 
-int heterogeneous_io_bound()
+void common_info (int tid){
+	cout << "CPU[" << Machine::cpu_id() << "] Thread[" << tid  << "]: ";
+}
+
+int heterogeneous_io_bound(int tid)
 {
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] Perform MORE IO!" << endl;
+	common_info(tid);
+	cout << "START Perform MORE IO!" << endl;
 	unique.unlock();
 
 	calc(100);
 	Delay io_call1(4000000); // thread release cpu
-	calc(1000);
+
+	unique.lock();
+	common_info(tid);
+	cout << "CONTINUE Perform MORE IO!" << endl;
+	unique.unlock();
+
 	Delay io_call2(6000000); // thread release cpu
 	calc(100);
+
+	unique.lock();
+	common_info(tid);
+	cout << "END Perform MORE IO!" << endl;
+	unique.unlock();
 
 	return 0;
 }
 
-int heterogeneous_cpu_bound()
+int heterogeneous_cpu_bound(int tid)
 {
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] Perform MORE CPU!" << endl;
+	common_info(tid);
+	cout << "START Perform MORE CPU!" << endl;
 	unique.unlock();
 
 	calc(1000);
 	Delay io_call(1000000); // thread release cpu
+
+	unique.lock();
+	common_info(tid);
+	cout << "CONTINUE Perform MORE CPU!" << endl;
+	unique.unlock();
+
 	calc(1000);
+
+	unique.lock();
+	common_info(tid);
+	cout << "END Perform MORE CPU!" << endl;
+	unique.unlock();
 
 	return 0;
 }
 
-int homogeneus_io_bound(int io_time)
+int homogeneus_io_bound(int io_time, int tid)
 {
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] START Homogeneus IO exec >> " << heavy_io_start << " <<" << endl;
+	common_info(tid);
+	cout << "START Homogeneus IO execID[" << heavy_io_start << "]" << endl;
 	heavy_io_start++;
 	unique.unlock();
 
 	Delay io_call(io_time); // thread release cpu
 
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] END Homogeneus IO exec >> " << heavy_io_end << " <<" << endl;
+	common_info(tid);
+	cout << "END Homogeneus IO execID[" << heavy_io_end << "]" << endl;
 	heavy_io_end++;
 	unique.unlock();
 
 	return 0;
 }
 
-int homogeneus_cpu_bound(int iterations)
+int homogeneus_cpu_bound(int iterations, int tid)
 {
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] START Homogeneus CPU performance!" << endl;
+	common_info(tid);
+	cout << "START Homogeneus CPU performance!" << endl;
 	unique.unlock();
 
 	calc(iterations);
 
 	unique.lock();
-	cout << "CPU[" << Machine::cpu_id() << "] END Homogeneus Heavy CPU performance!" << endl;
+	common_info(tid);
+	cout << "END Homogeneus Heavy CPU performance!" << endl;
 	unique.unlock();
 
 	return 0;
@@ -103,18 +134,18 @@ int main()
 	{
 		if((tid % 2) == 0){
 			if(tid % 3 == 0){
-				task[tid] = new Thread(&heterogeneous_cpu_bound);
+				task[tid] = new Thread(&heterogeneous_cpu_bound, tid);
 			}
 			else{
-				task[tid] = new Thread(&homogeneus_io_bound, 1000000);
+				task[tid] = new Thread(&homogeneus_io_bound, 1000000, tid);
 			}			
 		}
 		else{
 			if(tid % 3 == 0){
-				task[tid] = new Thread(&heterogeneous_io_bound);
+				task[tid] = new Thread(&heterogeneous_io_bound, tid);
 			}
 			else{
-				task[tid] = new Thread(&homogeneus_cpu_bound, 10000);
+				task[tid] = new Thread(&homogeneus_cpu_bound, 10000, tid);
 			}
 		}		
 	}
