@@ -13,19 +13,54 @@ struct MyLock: Spin
 };
 
 const int THREADS = 16;
-int heavy_io_start = 0;
-int light_io_start = 0;
-int heavy_io_end = 0;
-int light_io_end = 0;
+const int CPUS = 4;
+int io_start = 0;
+int io_end = 0;
 OStream cout;
 MyLock unique;
 Thread * task[THREADS];
+int cpu_thread_map[CPUS][THREADS];
 
-int calc (int iterations) {
-	int aux = 0;
-	for (int i = 0; i < iterations; ++i)
+void initialize_cpu_thread_map()
+{
+	for (int i = 0; i < CPUS; i++)
 	{
-		for (int i = 0; i < iterations; ++i)
+		for (int j = 0; j < THREADS; j++)
+		{
+			cpu_thread_map[i][j] = 0;
+		}
+	}
+}
+
+void set_cpu_thread_map(int tid)
+{
+	unique.lock();
+	int cpu_id = Machine::cpu_id();
+	cpu_thread_map[cpu_id][tid] = 1;
+	unique.unlock();
+}
+
+void show_cpu_thread_map()
+{
+	for (int i = 0; i < THREADS; i++)
+	{
+		cout << "THREAD" << i << " -> {";
+
+		for (int j = 0; j < CPUS; j++)
+		{
+			cout << "[CPU" << j << "] -> " << cpu_thread_map[j][i] << " ";
+		}
+
+		cout << "}" << endl;
+	}
+}
+
+int calc (int iterations) 
+{
+	int aux = 0;
+	for (int i = 0; i < iterations; i++)
+	{
+		for (int j = 0; j < iterations; j++)
 		{
 			aux++;
 		}
@@ -34,12 +69,15 @@ int calc (int iterations) {
 	return aux;
 }
 
-void common_info (int tid){
+void common_info (int tid)
+{
 	cout << "CPU[" << Machine::cpu_id() << "] Thread[" << tid  << "]: ";
 }
 
 int heterogeneous_io_bound(int tid)
 {
+	set_cpu_thread_map(tid);
+
 	unique.lock();
 	common_info(tid);
 	cout << "START Perform MORE IO!" << endl;
@@ -66,6 +104,8 @@ int heterogeneous_io_bound(int tid)
 
 int heterogeneous_cpu_bound(int tid)
 {
+	set_cpu_thread_map(tid);
+
 	unique.lock();
 	common_info(tid);
 	cout << "START Perform MORE CPU!" << endl;
@@ -91,18 +131,20 @@ int heterogeneous_cpu_bound(int tid)
 
 int homogeneus_io_bound(int io_time, int tid)
 {
+	set_cpu_thread_map(tid);
+
 	unique.lock();
 	common_info(tid);
-	cout << "START Homogeneus IO execID[" << heavy_io_start << "]" << endl;
-	heavy_io_start++;
+	cout << "START Homogeneus IO execID[" << io_start << "]" << endl;
+	io_start++;
 	unique.unlock();
 
 	Delay io_call(io_time); // thread release cpu
 
 	unique.lock();
 	common_info(tid);
-	cout << "END Homogeneus IO execID[" << heavy_io_end << "]" << endl;
-	heavy_io_end++;
+	cout << "END Homogeneus IO execID[" << io_end << "]" << endl;
+	io_end++;
 	unique.unlock();
 
 	return 0;
@@ -110,6 +152,8 @@ int homogeneus_io_bound(int io_time, int tid)
 
 int homogeneus_cpu_bound(int iterations, int tid)
 {
+	set_cpu_thread_map(tid);
+
 	unique.lock();
 	common_info(tid);
 	cout << "START Homogeneus CPU performance!" << endl;
@@ -119,7 +163,7 @@ int homogeneus_cpu_bound(int iterations, int tid)
 
 	unique.lock();
 	common_info(tid);
-	cout << "END Homogeneus Heavy CPU performance!" << endl;
+	cout << "END Homogeneus CPU performance!" << endl;
 	unique.unlock();
 
 	return 0;
@@ -127,8 +171,14 @@ int homogeneus_cpu_bound(int iterations, int tid)
 
 int main()
 {
+	initialize_cpu_thread_map();
+
+	cout <<  endl;
 	cout << "Migration test start!" << endl;
 	cout << "Active CPUs: " << Machine::n_cpus() << endl;
+	cout <<  endl;
+	cout << "-----------------------------------------------" << endl;
+	cout <<  endl;
 
 	for (int tid = 0; tid < THREADS; tid++)
 	{
@@ -155,6 +205,34 @@ int main()
 		task[tid]->join();
 	}
 
+	cout <<  endl;
+	cout << "-----------------------------------------------" << endl;
+	cout <<  endl;
+	cout << "CPU Queue Map | THREAD -> {[CPUX] -> present}" << endl;
+	cout <<  endl;
+	show_cpu_thread_map();
+	cout <<  endl;
+	cout << "-----------------------------------------------" << endl;
+	cout <<  endl;
 	cout << "Migration test end!" << endl;
+	cout <<  endl;
 	return 0;
 }
+
+
+/*
+void show_cpu_thread_map()
+{
+	for (int i = 0; i < CPUS; i++)
+	{
+		cout << "CPU" << i << " -> [";
+
+		for (int j = 0; j < THREADS; j++)
+		{
+			cout << "(" << j << "|" << cpu_thread_map[i][j] << ")" << endl;
+		}
+
+		cout << "]" << endl;
+	}
+}
+*/
