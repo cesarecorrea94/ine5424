@@ -76,7 +76,7 @@ void common_info (int tid)
 
 int heterogeneous_io_bound(int tid)
 {
-	set_cpu_thread_map(tid);
+	set_cpu_thread_map(tid); // mark in map
 
 	unique.lock();
 	common_info(tid);
@@ -85,6 +85,7 @@ int heterogeneous_io_bound(int tid)
 
 	calc(100);
 	Delay io_call1(4000000); // thread release cpu
+	set_cpu_thread_map(tid); // mark in map
 
 	unique.lock();
 	common_info(tid);
@@ -92,6 +93,7 @@ int heterogeneous_io_bound(int tid)
 	unique.unlock();
 
 	Delay io_call2(6000000); // thread release cpu
+	set_cpu_thread_map(tid); // mark in map
 	calc(100);
 
 	unique.lock();
@@ -113,6 +115,7 @@ int heterogeneous_cpu_bound(int tid)
 
 	calc(1000);
 	Delay io_call(1000000); // thread release cpu
+	set_cpu_thread_map(tid); // mark in map
 
 	unique.lock();
 	common_info(tid);
