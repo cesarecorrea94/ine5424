@@ -77,18 +77,18 @@ public:
     struct Bound_stats {
         enum Bound { _CPU, _IO };
     public:
-        Bound_stats(): _elapsed_time_on{1,1} {}
+        Bound_stats(): _elapsed_time_on{0,0} {}
         ~Bound_stats() {}
         void zero() {
             _elapsed_time_on[_CPU] = 0;
             _elapsed_time_on[_IO]  = 0;
         }
-            
+        
         void inc_elapsed_time_on(Bound bnd, Tick val) volatile {
             _elapsed_time_on[bnd] += val;
         }
         double CPU_bound() const volatile { 
-            return double(_elapsed_time_on[_CPU]) / (_elapsed_time_on[_CPU] + _elapsed_time_on[_IO]);
+            return double(_elapsed_time_on[_CPU] +1) / (_elapsed_time_on[_CPU] + _elapsed_time_on[_IO] +2);
         }
 
         void operator-=(const Bound_stats &other) volatile {
@@ -99,7 +99,20 @@ public:
             _elapsed_time_on[_CPU] += other._elapsed_time_on[_CPU];
             _elapsed_time_on[_IO]  += other._elapsed_time_on[_IO];
         }
+        void upd_elapsed_time_on_ready_state(Tick val) volatile {
+            _last_elapsed_time_on_ready_state = val;
+        }
+        void upd_elapsed_time_on_ready_state(Tick val, volatile Bound_stats &acumulated) volatile {
+            acumulated._last_elapsed_time_on_ready_state -= _last_elapsed_time_on_ready_state;
+            upd_elapsed_time_on_ready_state(val);
+            acumulated._last_elapsed_time_on_ready_state += _last_elapsed_time_on_ready_state;
+        }
+        void migrate(volatile Bound_stats &from, volatile Bound_stats &to) volatile {
+            from._last_elapsed_time_on_ready_state -= _last_elapsed_time_on_ready_state;
+            to  ._last_elapsed_time_on_ready_state += _last_elapsed_time_on_ready_state;
+        }
 
+        Tick _last_elapsed_time_on_ready_state;
     private:
         Tick _elapsed_time_on[2];
     };
@@ -107,57 +120,65 @@ public:
     struct Thread_stats: Bound_stats {
         static const unsigned int Q = Criterion::QUEUES;
     public:
-        Thread_stats(): _time_reference(Alarm_elapsed()) { queue_stats() += *this; }
-        ~Thread_stats() { queue_stats() -= *this; }
+        Thread_stats(Thread * self): _self(self), _time_reference(Alarm_elapsed()) {}
+        ~Thread_stats() {
+            queue_stats(rank().queue()) -= *this;
+        }
         void finish() {
-            queue_stats() -= *this;
+            queue_stats(rank().queue()) -= *this;
             this->zero();
+        }
+        
+        volatile Criterion & rank() {
+            return const_cast<volatile Criterion &>(_self->priority());
         }
         
         void inc_elapsed_time_on(Bound bnd, Tick val) {
             Bound_stats::inc_elapsed_time_on(bnd, val);
-            queue_stats().inc_elapsed_time_on(bnd, val);
+            queue_stats(rank().queue()).inc_elapsed_time_on(bnd, val);
         }
         Tick elapsed_time_reference() {
             Tick elapsed = Alarm_elapsed() - _time_reference;
             _time_reference = Alarm_elapsed();
             return elapsed;
         }
+        void upd_elapsed_time_on_ready_state(Tick val) {
+            Bound_stats::upd_elapsed_time_on_ready_state(val, queue_stats(rank().queue()) );
+        }
 
-        static volatile Bound_stats & queue_stats(unsigned cpu = Criterion::current_queue()) {
+        static volatile Bound_stats & queue_stats(unsigned cpu) {
             return _queue_stats[cpu];
         }
-        static void upd_mean_time_on_ready_state(Tick val) {
-            unsigned int weight = _scheduler.schedulables();
-            volatile double &mean_time = _mean_time_on_ready_state[Criterion::current_queue()];
-            mean_time = (mean_time*weight + val) / (weight+1);
-        }
-        static void check_migration(Thread * self) {
-            volatile Criterion &rank = const_cast<volatile Criterion &>(self->priority());
-            assert(Criterion::current_queue() == rank.queue());
+        void check_migration() {
+            // assert(Criterion::current_queue() == rank().queue());
             unsigned min_index = 0;
             for(unsigned i = 1; i < Q; ++i)
-                if(_mean_time_on_ready_state[i] < _mean_time_on_ready_state[min_index]) {
+                if(_queue_stats[i]._last_elapsed_time_on_ready_state
+                <  _queue_stats[min_index]._last_elapsed_time_on_ready_state) {
                     min_index = i;
                 }
+            auto old_queue = rank().queue();
             if(// se a minha fila está tão cheia quanto a fila para qual quero migrar, e
-                _mean_time_on_ready_state[Criterion::current_queue()] > _mean_time_on_ready_state[min_index] *3/2
+                _queue_stats[old_queue]._last_elapsed_time_on_ready_state
+            >   _queue_stats[min_index]._last_elapsed_time_on_ready_state *3/2
             && !(// se a fila para a qual quero migrar é CPU-Bound (tanto quanto a minha)
-                   (queue_stats().CPU_bound() < queue_stats(min_index).CPU_bound())
+                   (queue_stats(old_queue).CPU_bound() < queue_stats(min_index).CPU_bound())
                 // e a thread que quero migrar é IO-Bound (ou vice-versa)
-                ^  (queue_stats().CPU_bound() > self->_migration_stats.CPU_bound()) )
+                ^  (queue_stats(old_queue).CPU_bound() > _self->_migration_stats.CPU_bound()) )
             ) {
-                rank.queue(min_index);
-                queue_stats(min_index)  += self->_migration_stats;
-                queue_stats()           -= self->_migration_stats;
+                upd_elapsed_time_on_ready_state(/* renew */elapsed_time_reference());
+                migrate(queue_stats(old_queue), queue_stats(min_index));
+                queue_stats(old_queue)  -= *this;
+                rank().queue(min_index);
+                queue_stats(min_index)  += *this;
             }
         }
 
     private:
+        Thread * _self;
         Tick _time_reference;
         
         // tempo de espera é dependente da fila, não algo característico da thread
-        static volatile double _mean_time_on_ready_state[Q];
         static volatile Bound_stats _queue_stats[Q];
     };
 
@@ -245,7 +266,7 @@ protected:
 
 template<typename ... Tn>
 inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
-: _state(READY), _waiting(0), _joining(0), _link(this, NORMAL)
+: _state(READY), _waiting(0), _joining(0), _link(this, NORMAL), _migration_stats(this)
 {
     constructor_prologue(STACK_SIZE);
     _context = CPU::init_stack(0, _stack + STACK_SIZE, &__exit, entry, an ...);
@@ -254,7 +275,7 @@ inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
 
 template<typename ... Tn>
 inline Thread::Thread(const Configuration & conf, int (* entry)(Tn ...), Tn ... an)
-: _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion)
+: _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion), _migration_stats(this)
 {
     constructor_prologue(conf.stack_size);
     _context = CPU::init_stack(0, _stack + conf.stack_size, &__exit, entry, an ...);

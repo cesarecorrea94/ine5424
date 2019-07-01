@@ -16,7 +16,6 @@ volatile unsigned int Thread::_thread_count;
 Scheduler_Timer * Thread::_timer;
 Scheduler<Thread> Thread::_scheduler;
 Spin Thread::_lock;
-volatile double Thread::Thread_stats::_mean_time_on_ready_state[Q];
 volatile Thread::Bound_stats Thread::Thread_stats::_queue_stats[Q];
 
 // Methods
@@ -379,7 +378,8 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
                         // if(newState != RUNNING) {
                         //     if(one_thread != _scheduler.chosen()) {
                                 bool test = _scheduler.remove(one_thread);
-                                db<Init,Thread>(WRN) << "MIGRATION" << endl;
+                                // db<Init,Thread>(WRN) << "MIGRATION" << endl;
+                                one_thread->_migration_stats.check_migration();
                                 if(test)    _scheduler.insert(one_thread);
                         //     } else db<Init>(WRN) << "I'M CHOSEN" << endl;
                         // } else db<Init>(WRN) << "I'M RUNNING" << endl;
@@ -442,7 +442,7 @@ void Thread::state(State newState) {
         Tick elapsed = _migration_stats.elapsed_time_reference();
         switch (this->_state) {
         case READY:
-            _migration_stats.upd_mean_time_on_ready_state(elapsed);
+            _migration_stats.upd_elapsed_time_on_ready_state(elapsed);
             break;
         case RUNNING:
             _migration_stats.inc_elapsed_time_on(Bound_stats::_CPU, elapsed);
