@@ -75,13 +75,14 @@ public:
 
     // Migration
     struct Bound_stats {
-        enum Bound { _CPU, _IO };
+        enum Bound { _CPU, _IO, _RDY };
     public:
         Bound_stats(): _elapsed_time_on{0,0} {}
         ~Bound_stats() {}
         void zero() {
             _elapsed_time_on[_CPU] = 0;
             _elapsed_time_on[_IO]  = 0;
+            _elapsed_time_on[_RDY] = 0;
         }
         
         void inc_elapsed_time_on(Bound bnd, Tick val) volatile {
@@ -90,31 +91,23 @@ public:
         double CPU_bound() const volatile { 
             return double(_elapsed_time_on[_CPU] +1) / (_elapsed_time_on[_CPU] + _elapsed_time_on[_IO] +2);
         }
+        double RDY_bound() const volatile {
+            return double(_elapsed_time_on[_RDY] +1) / (_elapsed_time_on[_CPU] + _elapsed_time_on[_IO] +2);
+        }
 
         void operator-=(const Bound_stats &other) volatile {
             _elapsed_time_on[_CPU] -= other._elapsed_time_on[_CPU];
             _elapsed_time_on[_IO]  -= other._elapsed_time_on[_IO];
+            _elapsed_time_on[_RDY] -= other._elapsed_time_on[_RDY];
         }
         void operator+=(const Bound_stats &other) volatile {
             _elapsed_time_on[_CPU] += other._elapsed_time_on[_CPU];
             _elapsed_time_on[_IO]  += other._elapsed_time_on[_IO];
-        }
-        void upd_elapsed_time_on_ready_state(Tick val) volatile {
-            _last_elapsed_time_on_ready_state = val;
-        }
-        void upd_elapsed_time_on_ready_state(Tick val, volatile Bound_stats &acumulated) volatile {
-            acumulated._last_elapsed_time_on_ready_state -= _last_elapsed_time_on_ready_state;
-            upd_elapsed_time_on_ready_state(val);
-            acumulated._last_elapsed_time_on_ready_state += _last_elapsed_time_on_ready_state;
-        }
-        void migrate(volatile Bound_stats &from, volatile Bound_stats &to) volatile {
-            from._last_elapsed_time_on_ready_state -= _last_elapsed_time_on_ready_state;
-            to  ._last_elapsed_time_on_ready_state += _last_elapsed_time_on_ready_state;
+            _elapsed_time_on[_RDY] += other._elapsed_time_on[_RDY];
         }
 
-        Tick _last_elapsed_time_on_ready_state;
     private:
-        Tick _elapsed_time_on[2];
+        Tick _elapsed_time_on[3];
     };
 
     struct Thread_stats: Bound_stats {
@@ -142,35 +135,31 @@ public:
             _time_reference = Alarm_elapsed();
             return elapsed;
         }
-        void upd_elapsed_time_on_ready_state(Tick val) {
-            Bound_stats::upd_elapsed_time_on_ready_state(val, queue_stats(rank().queue()) );
-        }
 
         static volatile Bound_stats & queue_stats(unsigned cpu) {
             return _queue_stats[cpu];
         }
         void check_migration() {
-            // assert(Criterion::current_queue() == rank().queue());
             unsigned min_index = 0;
             for(unsigned i = 1; i < Q; ++i)
-                if(_queue_stats[i]._last_elapsed_time_on_ready_state
-                <  _queue_stats[min_index]._last_elapsed_time_on_ready_state) {
+                if(_queue_stats[i].RDY_bound()
+                <  _queue_stats[min_index].RDY_bound()) {
                     min_index = i;
                 }
             auto old_queue = rank().queue();
             if(// se a minha fila está tão cheia quanto a fila para qual quero migrar, e
-                _queue_stats[old_queue]._last_elapsed_time_on_ready_state
-            >   _queue_stats[min_index]._last_elapsed_time_on_ready_state *3/2
+                _queue_stats[old_queue].RDY_bound()
+            >   _queue_stats[min_index].RDY_bound()
             && !(// se a fila para a qual quero migrar é CPU-Bound (tanto quanto a minha)
                    (queue_stats(old_queue).CPU_bound() < queue_stats(min_index).CPU_bound())
                 // e a thread que quero migrar é IO-Bound (ou vice-versa)
-                ^  (queue_stats(old_queue).CPU_bound() > _self->_migration_stats.CPU_bound()) )
+                ^   (   ( queue_stats(old_queue).CPU_bound() + queue_stats(min_index).CPU_bound() ) /2
+                    >   _self->_migration_stats.CPU_bound() ) )
             ) {
-                upd_elapsed_time_on_ready_state(/* renew */elapsed_time_reference());
-                migrate(queue_stats(old_queue), queue_stats(min_index));
                 queue_stats(old_queue)  -= *this;
                 rank().queue(min_index);
-                queue_stats(min_index)  += *this;
+                this->zero();
+                elapsed_time_reference(); // renew
             }
         }
 
@@ -178,7 +167,6 @@ public:
         Thread * _self;
         Tick _time_reference;
         
-        // tempo de espera é dependente da fila, não algo característico da thread
         static volatile Bound_stats _queue_stats[Q];
     };
 

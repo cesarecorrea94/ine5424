@@ -372,18 +372,10 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
                 if(one_thread != 0 && one_thread != prev && one_thread != next) {
                     if(one_thread->priority() != Criterion::IDLE
                     && one_thread->priority() != Criterion::MAIN
-                    // && (_lock.is_mine() || !_lock.taken())
                     ) {
-                        // _lock.acquire();
-                        // if(newState != RUNNING) {
-                        //     if(one_thread != _scheduler.chosen()) {
-                                bool test = _scheduler.remove(one_thread);
-                                // db<Init,Thread>(WRN) << "MIGRATION" << endl;
-                                one_thread->_migration_stats.check_migration();
-                                if(test)    _scheduler.insert(one_thread);
-                        //     } else db<Init>(WRN) << "I'M CHOSEN" << endl;
-                        // } else db<Init>(WRN) << "I'M RUNNING" << endl;
-                        // _lock.release();
+                        bool test = _scheduler.remove(one_thread);
+                        one_thread->_migration_stats.check_migration();
+                        if(test)    _scheduler.insert(one_thread);
                     }
                 }
             }
@@ -442,7 +434,7 @@ void Thread::state(State newState) {
         Tick elapsed = _migration_stats.elapsed_time_reference();
         switch (this->_state) {
         case READY:
-            _migration_stats.upd_elapsed_time_on_ready_state(elapsed);
+            _migration_stats.inc_elapsed_time_on(Bound_stats::_RDY, elapsed);
             break;
         case RUNNING:
             _migration_stats.inc_elapsed_time_on(Bound_stats::_CPU, elapsed);
