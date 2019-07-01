@@ -66,10 +66,10 @@ public:
     static volatile Tick & elapsed() { return _elapsed; }
 
     static Microsecond timer_period() { return 1000000 / frequency(); }
+    static Tick ticks(const Microsecond & time) { return (time + timer_period() / 2) / timer_period(); }
 
 private:
     static void init();
-    static Tick ticks(const Microsecond & time) { return (time + timer_period() / 2) / timer_period(); }
 
     static void lock();
     static void unlock();
