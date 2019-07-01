@@ -5,6 +5,7 @@
 
 #include <architecture/cpu.h>
 #include <machine/ic.h>
+#include <machine/cortex_a/gic.h>
 #include __MODEL_H
 
 __BEGIN_SYS
@@ -210,7 +211,9 @@ public:
 
     using Engine::irq2int;
 
-    static void ipi_send(unsigned int cpu, Interrupt_Id int_id) {}
+    static void ipi_send(unsigned int cpu, Interrupt_Id int_id) {
+        send_sgi(int_id, 1<<cpu, 0x01);
+    }
 
     void undefined_instruction();
     void software_interrupt();

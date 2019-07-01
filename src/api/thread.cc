@@ -376,6 +376,7 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
                         bool test = _scheduler.remove(one_thread);
                         one_thread->_migration_stats.check_migration();
                         if(test)    _scheduler.insert(one_thread);
+                        reschedule(one_thread->priority().queue());
                     }
                 }
             }
