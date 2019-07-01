@@ -366,8 +366,29 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
         db<Thread>(INF) << "prev={" << prev << ",ctx=" << *prev->_context << "}" << endl;
         db<Thread>(INF) << "next={" << next << ",ctx=" << *next->_context << "}" << endl;
 
-        if(smp)
+        if(smp){
+            auto * one_link = _scheduler.head();
+            if(one_link != 0) {
+                Thread * one_thread = one_link->object();
+                if(one_thread != 0 && one_thread != prev && one_thread != next) {
+                    if(one_thread->priority() != Criterion::IDLE
+                    && one_thread->priority() != Criterion::MAIN
+                    // && (_lock.is_mine() || !_lock.taken())
+                    ) {
+                        // _lock.acquire();
+                        // if(newState != RUNNING) {
+                        //     if(one_thread != _scheduler.chosen()) {
+                                bool test = _scheduler.remove(one_thread);
+                                db<Init,Thread>(WRN) << "MIGRATION" << endl;
+                                if(test)    _scheduler.insert(one_thread);
+                        //     } else db<Init>(WRN) << "I'M CHOSEN" << endl;
+                        // } else db<Init>(WRN) << "I'M RUNNING" << endl;
+                        // _lock.release();
+                    }
+                }
+            }
             _lock.release();
+        }
 
         // The non-volatile pointer to volatile pointer to a non-volatile context is correct
         // and necessary because of context switches, but here, we are locked() and
@@ -419,16 +440,12 @@ int Thread::idle()
 void Thread::state(State newState) {
     if(Thread_stats::Q > 1) {
         Tick elapsed = _migration_stats.elapsed_time_reference();
-        Thread * enqueue;
         switch (this->_state) {
         case READY:
             _migration_stats.upd_mean_time_on_ready_state(elapsed);
             break;
         case RUNNING:
             _migration_stats.inc_elapsed_time_on(Bound_stats::_CPU, elapsed);
-            enqueue = _scheduler.remove(this);
-            _migration_stats.check_migration(this);
-            if(enqueue) _scheduler.insert(this);
             break;
         case SUSPENDED:
         case WAITING:

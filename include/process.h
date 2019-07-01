@@ -133,6 +133,8 @@ public:
             mean_time = (mean_time*weight + val) / (weight+1);
         }
         static void check_migration(Thread * self) {
+            volatile Criterion &rank = const_cast<volatile Criterion &>(self->priority());
+            assert(Criterion::current_queue() == rank.queue());
             unsigned min_index = 0;
             for(unsigned i = 1; i < Q; ++i)
                 if(_mean_time_on_ready_state[i] < _mean_time_on_ready_state[min_index]) {
@@ -145,7 +147,6 @@ public:
                 // e a thread que quero migrar é IO-Bound (ou vice-versa)
                 ^  (queue_stats().CPU_bound() > self->_migration_stats.CPU_bound()) )
             ) {
-                volatile Criterion &rank = const_cast<volatile Criterion &>(self->priority());
                 rank.queue(min_index);
                 queue_stats(min_index)  += self->_migration_stats;
                 queue_stats()           -= self->_migration_stats;
